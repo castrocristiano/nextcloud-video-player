@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const APP_ID = "nextcloud_video_player";
+  const APP_ID = "folder_video_player";
 
   function interpolate(template, vars) {
     if (!vars || typeof vars !== "object") {

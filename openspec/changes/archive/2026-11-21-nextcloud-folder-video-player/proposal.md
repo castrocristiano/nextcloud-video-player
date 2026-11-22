@@ -6,7 +6,7 @@ O projeto [lan-video-player](https://github.com/castrocristiano/lan-video-player
 
 ## What Changes
 
-Introduz o aplicativo Nextcloud **`nextcloud_video_player`** (compatível com **Nextcloud 30–32**, **PHP 8.2+** e frontend modular em **Vanilla JS + CSS**), portando e adaptando a experiência de biblioteca e player do `lan-video-player` para dentro do Nextcloud:
+Introduz o aplicativo Nextcloud **`folder_video_player`** (compatível com **Nextcloud 30–32**, **PHP 8.2+** e frontend modular em **Vanilla JS + CSS**), portando e adaptando a experiência de biblioteca e player do `lan-video-player` para dentro do Nextcloud:
 
 - **Persistência relacional em tabelas dedicadas do Nextcloud**:
   - Criação e versionamento via migrações oficiais do Nextcloud (compatíveis com PostgreSQL, MariaDB/MySQL e SQLite) de tabelas próprias (`ncvp_folders`, `ncvp_playback_progress`, `ncvp_user_preferences`, `ncvp_playback_sessions`) para armazenar pastas globais/pessoais, progresso sincronizado entre dispositivos, preferências do player e registro de sessões ativas/histórico.
@@ -53,7 +53,7 @@ Introduz o aplicativo Nextcloud **`nextcloud_video_player`** (compatível com **
 
 ## Impact
 
-- **Metadados, Bootstrap e Catálogo App Store**: Criação de `appinfo/info.xml` (validado contra `info.xsd`, com metadados em inglês `en` padrão e `pt_BR`), `appinfo/routes.php`, `lib/AppInfo/Application.php`, `img/app.svg`, `screenshots/`, `l10n/` (`pt_BR.json`, `pt_BR.js`) e `CHANGELOG.md` para Nextcloud 30–32 (`nextcloud_video_player`).
+- **Metadados, Bootstrap e Catálogo App Store**: Criação de `appinfo/info.xml` (validado contra `info.xsd`, com metadados em inglês `en` padrão e `pt_BR`), `appinfo/routes.php`, `lib/AppInfo/Application.php`, `img/app.svg`, `screenshots/`, `l10n/` (`pt_BR.json`, `pt_BR.js`) e `CHANGELOG.md` para Nextcloud 30–32 (`folder_video_player`).
 - **Banco de Dados e Migrações (`lib/Migration/`, `lib/Db/`)**: Migração inicial criando `ncvp_folders`, `ncvp_playback_progress`, `ncvp_user_preferences` e `ncvp_playback_sessions` com Entities e Mappers tipados (`OCP\AppFramework\Db\QBMapper`).
 - **Backend PHP (`lib/`)**: Controllers (`PageController`, `ConfigController`, `CatalogController`, `StreamController`, `SessionController`, `PreferenceController`, `SettingsController`), serviços (`FolderConfigService`, `SafeNodeResolver`, `VideoCatalogService`, `SubtitleService`, `MediaStreamService`, `FfmpegService`, `PlaybackSessionService`, `ProgressService`, `PreferenceService`), internacionalização via `OCP\IL10N`, listener de logout (`UserLoggedOutListener`) e job de limpeza (`SessionCleanupJob`).
 - **Frontend Vanilla JS/CSS (`js/`, `css/`, `templates/`)**: Interface principal do catálogo/player internacionalizada (`js/modules/i18n.js` com `en` padrão e `pt_BR`), gerenciamento de sessão (*heartbeat*, `keepalive`/`sendBeacon`, listagem/revogação de sessões), sincronização de progresso/preferências com a API, painel de configurações de Admin e tema integrado ao Nextcloud.

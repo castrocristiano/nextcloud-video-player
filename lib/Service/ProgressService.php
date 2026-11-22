@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace OCA\NextcloudVideoPlayer\Service;
+namespace OCA\FolderVideoPlayer\Service;
 
-use OCA\NextcloudVideoPlayer\Db\PlaybackProgressEntity;
-use OCA\NextcloudVideoPlayer\Db\PlaybackProgressMapper;
+use OCA\FolderVideoPlayer\Db\PlaybackProgressEntity;
+use OCA\FolderVideoPlayer\Db\PlaybackProgressMapper;
 
 class ProgressService
 {

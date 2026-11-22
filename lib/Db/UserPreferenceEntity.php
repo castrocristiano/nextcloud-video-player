@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace OCA\NextcloudVideoPlayer\Db;
+namespace OCA\FolderVideoPlayer\Db;
 
 use OCP\AppFramework\Db\Entity;
 

@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace OCA\NextcloudVideoPlayer\Service;
+namespace OCA\FolderVideoPlayer\Service;
 
 use InvalidArgumentException;
-use OCA\NextcloudVideoPlayer\Db\FolderEntity;
-use OCA\NextcloudVideoPlayer\Db\FolderMapper;
+use OCA\FolderVideoPlayer\Db\FolderEntity;
+use OCA\FolderVideoPlayer\Db\FolderMapper;
 use OCP\Files\Folder;
 use OCP\Files\IRootFolder;
 use OCP\Files\NotFoundException;

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace OCA\NextcloudVideoPlayer\Db;
+namespace OCA\FolderVideoPlayer\Db;
 
-use OCA\NextcloudVideoPlayer\Migration\Version0001Date20261121000000;
+use OCA\FolderVideoPlayer\Migration\Version0001Date20261121000000;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Db\QBMapper;
 use OCP\DB\QueryBuilder\IQueryBuilder;

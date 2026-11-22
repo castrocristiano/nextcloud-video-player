@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace OCA\NextcloudVideoPlayer\BackgroundJob;
+namespace OCA\FolderVideoPlayer\BackgroundJob;
 
-use OCA\NextcloudVideoPlayer\Service\PlaybackSessionService;
+use OCA\FolderVideoPlayer\Service\PlaybackSessionService;
 use OCP\BackgroundJob\TimedJob;
 
 class SessionCleanupJob extends TimedJob

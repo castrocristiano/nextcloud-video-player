@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace OCA\NextcloudVideoPlayer\Tests\Unit\BackgroundJob;
+namespace OCA\FolderVideoPlayer\Tests\Unit\BackgroundJob;
 
-use OCA\NextcloudVideoPlayer\BackgroundJob\SessionCleanupJob;
-use OCA\NextcloudVideoPlayer\Listener\UserLoggedOutListener;
-use OCA\NextcloudVideoPlayer\Service\PlaybackSessionService;
+use OCA\FolderVideoPlayer\BackgroundJob\SessionCleanupJob;
+use OCA\FolderVideoPlayer\Listener\UserLoggedOutListener;
+use OCA\FolderVideoPlayer\Service\PlaybackSessionService;
 use OCP\IUser;
 use OCP\User\Events\UserLoggedOutEvent;
 use PHPUnit\Framework\TestCase;

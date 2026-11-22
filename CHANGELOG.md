@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to **`nextcloud_video_player`** are documented in this file.
+All notable changes to **`folder_video_player`** are documented in this file.
 
 ## [0.1.0] - 2026-11-21
 

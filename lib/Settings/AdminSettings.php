@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace OCA\NextcloudVideoPlayer\Settings;
+namespace OCA\FolderVideoPlayer\Settings;
 
-use OCA\NextcloudVideoPlayer\AppInfo\Application;
-use OCA\NextcloudVideoPlayer\Service\FolderConfigService;
+use OCA\FolderVideoPlayer\AppInfo\Application;
+use OCA\FolderVideoPlayer\Service\FolderConfigService;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\IConfig;
 use OCP\Settings\ISettings;

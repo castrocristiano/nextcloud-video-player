@@ -9,7 +9,7 @@
 
 ### 2. Código-Fonte e Testes (EN-US)
 - **Código-Fonte em Inglês**: Todo o código-fonte PHP, JavaScript e CSS DEVE ser escrito em **Inglês (EN-US)**.
-- **Identificadores**: Namespaces (`OCA\NextcloudVideoPlayer\...`), classes, métodos, funções, variáveis, rotas, chaves de configuração e atributos CSS/DOM DEVEM ser em inglês (ex.: `FolderConfigService`, `VideoCatalogService`, `StreamController`, `listVideos`, `resolveSafeNode`).
+- **Identificadores**: Namespaces (`OCA\FolderVideoPlayer\...`), classes, métodos, funções, variáveis, rotas, chaves de configuração e atributos CSS/DOM DEVEM ser em inglês (ex.: `FolderConfigService`, `VideoCatalogService`, `StreamController`, `listVideos`, `resolveSafeNode`).
 - **Docblocks e Comentários**: Devem ser redigidos em inglês no código-fonte.
 - **Testes**: Arquivos e funções de teste (PHPUnit e Vitest) devem seguir nomenclatura em inglês (ex.: `testStreamReturnsPartialContentForValidRange()`, `shouldResumePlaybackFromSavedPosition()`).
 

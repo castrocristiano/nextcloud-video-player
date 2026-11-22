@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace OCA\NextcloudVideoPlayer\Listener;
+namespace OCA\FolderVideoPlayer\Listener;
 
-use OCA\NextcloudVideoPlayer\Service\PlaybackSessionService;
+use OCA\FolderVideoPlayer\Service\PlaybackSessionService;
 use OCP\EventDispatcher\Event;
 use OCP\EventDispatcher\IEventListener;
 use OCP\User\Events\UserLoggedOutEvent;

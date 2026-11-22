@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace OCA\NextcloudVideoPlayer\Tests\Unit\AppInfo;
+namespace OCA\FolderVideoPlayer\Tests\Unit\AppInfo;
 
-use OCA\NextcloudVideoPlayer\AppInfo\Application;
-use OCA\NextcloudVideoPlayer\Listener\UserLoggedOutListener;
+use OCA\FolderVideoPlayer\AppInfo\Application;
+use OCA\FolderVideoPlayer\Listener\UserLoggedOutListener;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
 use OCP\IContainer;
@@ -36,12 +36,12 @@ class ApplicationTest extends TestCase
             ->with(UserLoggedOutEvent::class, UserLoggedOutListener::class);
 
         $app->register($registrationContext);
-        $this->assertSame('nextcloud_video_player', $app->getAppName());
+        $this->assertSame('folder_video_player', $app->getAppName());
         $this->assertIsCallable($capturedServiceFactory);
 
         $l10n = $this->createMock(IL10N::class);
         $factory = $this->createMock(IFactory::class);
-        $factory->method('get')->with('nextcloud_video_player')->willReturn($l10n);
+        $factory->method('get')->with('folder_video_player')->willReturn($l10n);
         $container = $this->createMock(IContainer::class);
         $container->method('get')->with(IFactory::class)->willReturn($factory);
 
@@ -62,11 +62,11 @@ class ApplicationTest extends TestCase
 
         $urlGen = $this->createMock(IURLGenerator::class);
         $urlGen->method('linkToRoute')
-            ->with('nextcloud_video_player.page.index')
-            ->willReturn('/apps/nextcloud_video_player/');
+            ->with('folder_video_player.page.index')
+            ->willReturn('/apps/folder_video_player/');
         $urlGen->method('imagePath')
-            ->with('nextcloud_video_player', 'app.svg')
-            ->willReturn('/apps/nextcloud_video_player/img/app.svg');
+            ->with('folder_video_player', 'app.svg')
+            ->willReturn('/apps/folder_video_player/img/app.svg');
 
         $l10n = $this->createMock(IL10N::class);
         $l10n->method('t')
@@ -75,7 +75,7 @@ class ApplicationTest extends TestCase
 
         $l10nFactory = $this->createMock(IFactory::class);
         $l10nFactory->method('get')
-            ->with('nextcloud_video_player')
+            ->with('folder_video_player')
             ->willReturn($l10n);
 
         $container = $this->createMock(IServerContainer::class);
@@ -94,9 +94,9 @@ class ApplicationTest extends TestCase
         $this->assertIsCallable($capturedClosure);
 
         $entry = $capturedClosure();
-        $this->assertSame('nextcloud_video_player', $entry['id']);
-        $this->assertSame('/apps/nextcloud_video_player/', $entry['href']);
-        $this->assertSame('/apps/nextcloud_video_player/img/app.svg', $entry['icon']);
+        $this->assertSame('folder_video_player', $entry['id']);
+        $this->assertSame('/apps/folder_video_player/', $entry['href']);
+        $this->assertSame('/apps/folder_video_player/img/app.svg', $entry['icon']);
         $this->assertSame('Player de Vídeo', $entry['name']);
     }
 }

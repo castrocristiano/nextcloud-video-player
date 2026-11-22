@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace OCA\NextcloudVideoPlayer\Tests\Unit\Service;
+namespace OCA\FolderVideoPlayer\Tests\Unit\Service;
 
-use OCA\NextcloudVideoPlayer\Db\FolderEntity;
-use OCA\NextcloudVideoPlayer\Db\FolderMapper;
-use OCA\NextcloudVideoPlayer\Service\FolderConfigService;
-use OCA\NextcloudVideoPlayer\Service\SafeNodeResolver;
+use OCA\FolderVideoPlayer\Db\FolderEntity;
+use OCA\FolderVideoPlayer\Db\FolderMapper;
+use OCA\FolderVideoPlayer\Service\FolderConfigService;
+use OCA\FolderVideoPlayer\Service\SafeNodeResolver;
 use OCP\Files\Folder;
 use OCP\Files\IRootFolder;
 use OCP\Files\NotPermittedException;

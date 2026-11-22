@@ -1,6 +1,6 @@
 # Nextcloud Video Player — Wiki
 
-Bem-vindo à documentação do **nextcloud-video-player** (`nextcloud_video_player`), um aplicativo para **Nextcloud 30–32 (PHP 8.2+)** inspirado no [lan-video-player](https://github.com/castrocristiano/lan-video-player) para navegar e reproduzir vídeos a partir de pastas selecionadas já configuradas.
+Bem-vindo à documentação do **nextcloud-video-player** (`folder_video_player`), um aplicativo para **Nextcloud 30–32 (PHP 8.2+)** inspirado no [lan-video-player](https://github.com/castrocristiano/lan-video-player) para navegar e reproduzir vídeos a partir de pastas selecionadas já configuradas.
 
 ## Páginas da Documentação
 

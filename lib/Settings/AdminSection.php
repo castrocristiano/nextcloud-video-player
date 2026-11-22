@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace OCA\NextcloudVideoPlayer\Settings;
+namespace OCA\FolderVideoPlayer\Settings;
 
-use OCA\NextcloudVideoPlayer\AppInfo\Application;
+use OCA\FolderVideoPlayer\AppInfo\Application;
 use OCP\IL10N;
 use OCP\IURLGenerator;
 use OCP\Settings\IIconSection;

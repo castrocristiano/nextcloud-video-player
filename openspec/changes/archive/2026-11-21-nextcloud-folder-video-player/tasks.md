@@ -2,7 +2,7 @@
 
 ## 1. Scaffolding do App Nextcloud, Metadados App Store e Tooling de Qualidade
 
-- [x] 1.1 Criar `appinfo/info.xml` completo para o catálogo da Nextcloud App Store (`nextcloud_video_player`, categoria `multimedia`, Nextcloud 30–32, PHP 8.2–8.4, licença `agpl`, metadados padrão em inglês `en` e localizados em `pt_BR`, `<navigations>`, `<settings><admin>`, `<website>`, `<bugs>`, `<repository>`, `<screenshot>`) e validar contra o XSD oficial (`https://apps.nextcloud.com/schema/apps/info.xsd`)
+- [x] 1.1 Criar `appinfo/info.xml` completo para o catálogo da Nextcloud App Store (`folder_video_player`, categoria `multimedia`, Nextcloud 30–32, PHP 8.2–8.4, licença `agpl`, metadados padrão em inglês `en` e localizados em `pt_BR`, `<navigations>`, `<settings><admin>`, `<website>`, `<bugs>`, `<repository>`, `<screenshot>`) e validar contra o XSD oficial (`https://apps.nextcloud.com/schema/apps/info.xsd`)
 - [x] 1.2 Criar `appinfo/routes.php`, `lib/AppInfo/Application.php` (`IBootstrap`, registro de navegação com `OCP\IL10N`, DI, `AdminSettings`, `UserLoggedOutListener` e `SessionCleanupJob`), `img/app.svg` e `CHANGELOG.md`
 - [x] 1.3 Configurar `composer.json`, `phpunit.xml` e `phpstan.neon` (PHPUnit 11 + PHPStan + stubs `christophwurst/nextcloud`) e verificar execução limpa de `vendor/bin/phpstan` e `vendor/bin/phpunit`
 - [x] 1.4 Configurar `package.json`, `eslint.config.js` e `vitest.config.js` (ESLint 9 + Vitest + `@vitest/coverage-v8` com saída `coverage/lcov.info` + `jsdom`) e verificar execução limpa de `npm run lint` e `npm run test:coverage`

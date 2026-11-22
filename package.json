@@ -1,5 +1,5 @@
 {
-  "name": "nextcloud_video_player",
+  "name": "folder_video_player",
   "version": "0.1.0",
   "private": true,
   "description": "Nextcloud Video Player frontend modules and unit tests",

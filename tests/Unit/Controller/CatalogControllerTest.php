@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace OCA\NextcloudVideoPlayer\Tests\Unit\Controller;
+namespace OCA\FolderVideoPlayer\Tests\Unit\Controller;
 
-use OCA\NextcloudVideoPlayer\Controller\CatalogController;
-use OCA\NextcloudVideoPlayer\Service\FolderConfigService;
-use OCA\NextcloudVideoPlayer\Service\SafeNodeResolver;
-use OCA\NextcloudVideoPlayer\Service\SubtitleService;
-use OCA\NextcloudVideoPlayer\Service\VideoCatalogService;
+use OCA\FolderVideoPlayer\Controller\CatalogController;
+use OCA\FolderVideoPlayer\Service\FolderConfigService;
+use OCA\FolderVideoPlayer\Service\SafeNodeResolver;
+use OCA\FolderVideoPlayer\Service\SubtitleService;
+use OCA\FolderVideoPlayer\Service\VideoCatalogService;
 use OCP\AppFramework\Http;
 use OCP\IL10N;
 use OCP\IRequest;
@@ -61,7 +61,7 @@ class CatalogControllerTest extends TestCase
         $l10n->method('t')->willReturnArgument(0);
 
         $controller = new CatalogController(
-            'nextcloud_video_player',
+            'folder_video_player',
             $request,
             $catalogService,
             $folderService,
