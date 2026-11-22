@@ -5,11 +5,19 @@ declare(strict_types=1);
 namespace OCA\FolderVideoPlayer\Service;
 
 use OCA\FolderVideoPlayer\AppInfo\Application;
+use OCP\ICache;
+use OCP\ICacheFactory;
 use OCP\IConfig;
 use RuntimeException;
 
 class FfmpegService
 {
+    private const LOOPBACK_BLOCK_SIZE = 262144; // 256 KB
+    private const LOOPBACK_MEM_MAX_BLOCKS = 64; // 16 MB in-memory block cache
+    private const HEAD_CACHE_BYTES = 524288; // 512 KB header
+    private const TAIL_CACHE_BYTES = 2097152; // 2 MB tail/index
+    private const BLOCK_CACHE_TTL = 3600;
+
     /** @var null|callable(list<string>): array{exitCode: int, stdout: string, stderr: string} */
     private $commandRunner;
 
@@ -18,7 +26,8 @@ class FfmpegService
      */
     public function __construct(
         private IConfig $config,
-        ?callable $commandRunner = null
+        ?callable $commandRunner = null,
+        private ?ICacheFactory $cacheFactory = null
     ) {
         $this->commandRunner = $commandRunner;
     }
@@ -247,7 +256,7 @@ class FfmpegService
      * @param resource $inputStream
      * @param callable(string): void $writer
      */
-    public function transcodeStreamToCallback($inputStream, float $startSeconds, callable $writer, ?int $fileSize = null): void
+    public function transcodeStreamToCallback($inputStream, float $startSeconds, callable $writer, ?int $fileSize = null, ?string $cacheKeyPrefix = null): void
     {
         if (
             $fileSize !== null
@@ -257,7 +266,7 @@ class FfmpegService
         ) {
             $server = @stream_socket_server('tcp://127.0.0.1:0', $errno, $errstr);
             if (is_resource($server)) {
-                $this->transcodeViaLoopbackRange($inputStream, $fileSize, $startSeconds, $writer, $server);
+                $this->transcodeViaLoopbackRange($inputStream, $fileSize, $startSeconds, $writer, $server, $cacheKeyPrefix);
                 return;
             }
         }
@@ -368,7 +377,7 @@ class FfmpegService
      * @param resource $inputStream
      * @param resource $server
      */
-    private function transcodeViaLoopbackRange($inputStream, int $fileSize, float $startSeconds, callable $writer, $server): void
+    private function transcodeViaLoopbackRange($inputStream, int $fileSize, float $startSeconds, callable $writer, $server, ?string $cacheKeyPrefix = null): void
     {
         $address = @stream_socket_get_name($server, false);
         if (!is_string($address) || $address === '') {
@@ -376,6 +385,17 @@ class FfmpegService
             @fclose($inputStream);
             return;
         }
+
+        $blockCache = null;
+        if ($cacheKeyPrefix !== null && $this->cacheFactory !== null) {
+            try {
+                $blockCache = $this->cacheFactory->createDistributed('ncvp_media_blocks');
+            } catch (\Throwable) {
+                $blockCache = null;
+            }
+        }
+        /** @var array<int, string> $memBlocks */
+        $memBlocks = [];
 
         @stream_set_blocking($server, false);
         $token = bin2hex(random_bytes(16));
@@ -465,9 +485,16 @@ class FfmpegService
 
                     if ($writeParam !== null && in_array($c['sock'], $writeParam, true)) {
                         if ($c['buf'] === '' && $c['rem'] > 0) {
-                            @fseek($inputStream, $c['pos']);
-                            $chunk = @fread($inputStream, min(131072, $c['rem']));
-                            if ($chunk === false || $chunk === '') {
+                            $chunk = $this->readCachedSeekableChunk(
+                                $inputStream,
+                                $c['pos'],
+                                min(131072, $c['rem']),
+                                $fileSize,
+                                $memBlocks,
+                                $blockCache,
+                                $cacheKeyPrefix
+                            );
+                            if ($chunk === '') {
                                 $c['rem'] = 0;
                             } else {
                                 $c['buf'] = $chunk;
@@ -572,6 +599,82 @@ class FfmpegService
         $client['rem'] = $length;
         $client['ready'] = true;
         $client['req'] = '';
+    }
+
+    /**
+     * Reads a chunk at the given offset using an in-memory 256 KB block cache and distributed
+     * Nextcloud cache for header/tail index regions to avoid repeated SFTP round-trips.
+     *
+     * @param resource $inputStream
+     * @param array<int, string> $memBlocks
+     */
+    private function readCachedSeekableChunk(
+        $inputStream,
+        int $offset,
+        int $length,
+        int $fileSize,
+        array &$memBlocks,
+        ?ICache $blockCache,
+        ?string $cacheKeyPrefix
+    ): string {
+        if ($offset >= $fileSize || $length <= 0) {
+            return '';
+        }
+
+        $blockIdx = intdiv($offset, self::LOOPBACK_BLOCK_SIZE);
+        $blockStart = $blockIdx * self::LOOPBACK_BLOCK_SIZE;
+        $inBlockOffset = $offset - $blockStart;
+
+        if (!isset($memBlocks[$blockIdx])) {
+            $blockData = null;
+            $isHeaderOrTail = $blockStart < self::HEAD_CACHE_BYTES
+                || $blockStart >= max(0, $fileSize - self::TAIL_CACHE_BYTES);
+            $distKey = ($blockCache !== null && $cacheKeyPrefix !== null && $isHeaderOrTail)
+                ? $cacheKeyPrefix . '_' . $blockIdx
+                : null;
+
+            if ($distKey !== null) {
+                $cached = $blockCache->get($distKey);
+                if (is_string($cached) && $cached !== '') {
+                    $blockData = $cached;
+                }
+            }
+
+            if ($blockData === null) {
+                @fseek($inputStream, $blockStart);
+                $toRead = min(self::LOOPBACK_BLOCK_SIZE, $fileSize - $blockStart);
+                $readData = '';
+                while (strlen($readData) < $toRead) {
+                    $part = @fread($inputStream, $toRead - strlen($readData));
+                    if ($part === false || $part === '') {
+                        break;
+                    }
+                    $readData .= $part;
+                }
+                if ($readData === '') {
+                    return '';
+                }
+                $blockData = $readData;
+                if ($distKey !== null) {
+                    $blockCache->set($distKey, $blockData, self::BLOCK_CACHE_TTL);
+                }
+            }
+
+            if (count($memBlocks) >= self::LOOPBACK_MEM_MAX_BLOCKS) {
+                $firstKey = array_key_first($memBlocks);
+                if ($firstKey !== null) {
+                    unset($memBlocks[$firstKey]);
+                }
+            }
+            $memBlocks[$blockIdx] = $blockData;
+        }
+
+        $data = $memBlocks[$blockIdx];
+        if ($inBlockOffset >= strlen($data)) {
+            return '';
+        }
+
+        return (string) substr($data, $inBlockOffset, $length);
     }
 
     /**
