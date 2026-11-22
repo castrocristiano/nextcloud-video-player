@@ -103,14 +103,14 @@ class StreamController extends Controller
 
                     public function callback(IOutput $output): void
                     {
-                        while (ob_get_level() > 0) {
-                            @ob_end_flush();
-                        }
                         $this->ffmpegService->transcodeStreamToCallback(
                             $this->stream,
                             $this->startSeconds,
                             static function (string $chunk) use ($output): void {
                                 $output->setOutput($chunk);
+                                if (ob_get_level() > 0) {
+                                    @ob_flush();
+                                }
                                 @flush();
                             }
                         );
@@ -155,15 +155,15 @@ class StreamController extends Controller
 
                 public function callback(IOutput $output): void
                 {
-                    while (ob_get_level() > 0) {
-                        @ob_end_flush();
-                    }
                     $this->mediaStreamService->streamRangeSlice(
                         $this->stream,
                         $this->rangeInfo['start'],
                         $this->rangeInfo['length'],
                         static function (string $chunk) use ($output): void {
                             $output->setOutput($chunk);
+                            if (ob_get_level() > 0) {
+                                @ob_flush();
+                            }
                             @flush();
                         }
                     );
