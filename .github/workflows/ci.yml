@@ -49,11 +49,20 @@ jobs:
       - name: Validate Nextcloud appinfo/info.xml against official App Store XSD
         if: hashFiles('appinfo/info.xml') != ''
         run: |
-          xmllint --noout appinfo/info.xml
-          if curl -fsSL -o /tmp/info.xsd https://apps.nextcloud.com/schema/apps/info.xsd; then
-            xmllint --schema /tmp/info.xsd --noout appinfo/info.xml
-            echo "✅ appinfo/info.xml validado contra o XSD oficial da Nextcloud App Store."
-          fi
+          curl -fsSL -o /tmp/info.xsd https://apps.nextcloud.com/schema/apps/info.xsd
+          php -r '
+            libxml_use_internal_errors(true);
+            $dom = new DOMDocument();
+            if (!$dom->load("appinfo/info.xml")) {
+              foreach (libxml_get_errors() as $err) { fwrite(STDERR, $err->message); }
+              exit(1);
+            }
+            if (is_file("/tmp/info.xsd") && !$dom->schemaValidate("/tmp/info.xsd")) {
+              foreach (libxml_get_errors() as $err) { fwrite(STDERR, $err->message); }
+              exit(1);
+            }
+            echo "✅ appinfo/info.xml validado contra o XSD oficial da Nextcloud App Store.\n";
+          '
 
       - name: PHP Syntax Lint
         run: |
@@ -127,8 +136,19 @@ jobs:
           SONAR_HOST_URL: "http://localhost:9000"
         run: |
           if [ -z "${SONAR_TOKEN:-}" ]; then
-            echo "Gerando token temporário no SonarQube local do CI..."
-            SONAR_TOKEN=$(curl -s -u admin:admin -X POST "http://localhost:9000/api/user_tokens/generate" -d "name=ci-token-${GITHUB_RUN_ID}" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+            echo "Configurando autenticação efêmera no SonarQube local do CI (padrão contas)..."
+            curl -s -u admin:admin -X POST "http://localhost:9000/api/users/change_password?login=admin&previousPassword=admin&password=admin1234" || true
+            SONAR_TOKEN=$(curl -s -u admin:admin1234 -X POST "http://localhost:9000/api/user_tokens/generate?name=ci-token-${GITHUB_RUN_ID}" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+            if [ -z "${SONAR_TOKEN:-}" ]; then
+              SONAR_TOKEN=$(curl -s -u admin:admin -X POST "http://localhost:9000/api/user_tokens/generate?name=ci-token-${GITHUB_RUN_ID}" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+            fi
+          fi
+
+          curl -s -u "${SONAR_TOKEN}:" -X POST "http://localhost:9000/api/projects/create" \
+            -d "project=nextcloud-video-player&name=nextcloud-video-player" >/dev/null 2>&1 || true
+
+          if [ -f build/logs/clover.xml ]; then
+            sed -i "s|${GITHUB_WORKSPACE}|/usr/src|g" build/logs/clover.xml
           fi
 
           docker run --rm \
