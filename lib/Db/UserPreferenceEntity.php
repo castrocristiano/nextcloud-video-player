@@ -21,6 +21,12 @@ use OCP\AppFramework\Db\Entity;
  * @method void setMuted(bool $muted)
  * @method ?string getPreferredSubtitle()
  * @method void setPreferredSubtitle(?string $preferredSubtitle)
+ * @method ?string getLastRootId()
+ * @method void setLastRootId(?string $lastRootId)
+ * @method ?string getLastFolderPath()
+ * @method void setLastFolderPath(?string $lastFolderPath)
+ * @method float getSubtitleScale()
+ * @method void setSubtitleScale(float $subtitleScale)
  * @method int getUpdatedAt()
  * @method void setUpdatedAt(int $updatedAt)
  */
@@ -33,6 +39,9 @@ class UserPreferenceEntity extends Entity
     protected float $volume = 1.0;
     protected bool $muted = false;
     protected ?string $preferredSubtitle = null;
+    protected ?string $lastRootId = null;
+    protected ?string $lastFolderPath = null;
+    protected float $subtitleScale = 1.0;
     protected int $updatedAt = 0;
 
     public function __construct()
@@ -44,6 +53,9 @@ class UserPreferenceEntity extends Entity
         $this->addType('volume', 'float');
         $this->addType('muted', 'boolean');
         $this->addType('preferredSubtitle', 'string');
+        $this->addType('lastRootId', 'string');
+        $this->addType('lastFolderPath', 'string');
+        $this->addType('subtitleScale', 'float');
         $this->addType('updatedAt', 'integer');
     }
 }

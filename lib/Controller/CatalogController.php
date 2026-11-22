@@ -54,9 +54,10 @@ class CatalogController extends Controller
         $rootId = (string) $this->request->getParam('rootId', '');
         $path = (string) $this->request->getParam('path', '');
         $sortBy = (string) $this->request->getParam('sort', 'name_asc');
+        $forceRefresh = filter_var($this->request->getParam('refresh', false), FILTER_VALIDATE_BOOLEAN);
 
         try {
-            $data = $this->catalogService->listFolder($userId, $rootId, $path, $sortBy);
+            $data = $this->catalogService->listFolder($userId, $rootId, $path, $sortBy, $forceRefresh);
             return new DataResponse($data);
         } catch (InvalidArgumentException $e) {
             return $this->errorResponse($this->l10n->t($e->getMessage()), Http::STATUS_BAD_REQUEST);
@@ -111,6 +112,9 @@ class CatalogController extends Controller
         }
 
         $path = (string) $this->request->getParam('path', '');
+        $offsetSeconds = max(0.0, (float) $this->request->getParam('offset', 0));
+        $syncDelaySeconds = (float) $this->request->getParam('delay', 0);
+        $totalShiftSeconds = $syncDelaySeconds - $offsetSeconds;
 
         try {
             $effectiveRoots = $this->folderConfigService->getEffectiveRoots($userId);
@@ -121,6 +125,9 @@ class CatalogController extends Controller
                 $effectiveRoots,
                 $this->safeNodeResolver
             );
+            if (abs($totalShiftSeconds) >= 0.001) {
+                $vttContent = $this->subtitleService->shiftWebVttTimestamps($vttContent, $totalShiftSeconds);
+            }
 
             return new class($vttContent) extends Response implements ICallbackResponse {
                 public function __construct(private string $body)

@@ -94,26 +94,42 @@ class SubtitleService
         }
 
         $raw = $subtitleFile->getContent();
+        $utf8 = $this->ensureUtf8($raw);
         if ($ext === 'vtt') {
-            return $this->normalizeVttContent($raw);
+            return $this->normalizeVttContent($utf8);
         }
 
-        return $this->convertSrtToWebVtt($raw);
+        return $this->convertSrtToWebVtt($utf8);
     }
 
     public function convertSrtToWebVtt(string $srtContent): string
     {
-        $clean = preg_replace('/^\xEF\xBB\xBF/', '', $srtContent) ?? $srtContent;
+        $utf8 = $this->ensureUtf8($srtContent);
+        $clean = preg_replace('/^\xEF\xBB\xBF/', '', $utf8) ?? $utf8;
         $clean = str_replace(["\r\n", "\r"], "\n", $clean);
 
-        // Replace SRT comma milliseconds (00:01:23,456 --> 00:01:25,789) with WebVTT dots
+        // Replace SRT comma or dot milliseconds (00:01:23,456 --> 00:01:25,789 or 01:23,456) with WebVTT dots
         $converted = preg_replace(
-            '/(\d{2}:\d{2}:\d{2}),(\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}),(\d{3})/',
+            '/(\d{1,2}:\d{2}(?::\d{2})?),(\d{3})\s*-->\s*(\d{1,2}:\d{2}(?::\d{2})?),(\d{3})/',
             '$1.$2 --> $3.$4',
             $clean
         ) ?? $clean;
 
         return "WEBVTT\n\n" . trim($converted) . "\n";
+    }
+
+    private function ensureUtf8(string $content): string
+    {
+        if (mb_check_encoding($content, 'UTF-8')) {
+            return $content;
+        }
+
+        $converted = @mb_convert_encoding($content, 'UTF-8', 'Windows-1252');
+        if (is_string($converted) && $converted !== '') {
+            return $converted;
+        }
+
+        return mb_convert_encoding($content, 'UTF-8', 'ISO-8859-1');
     }
 
     /**
@@ -136,6 +152,54 @@ class SubtitleService
         }
 
         return $this->readAsWebVtt($file);
+    }
+
+    /**
+     * Shifts all WebVTT cue timestamps by $shiftSeconds.
+     * Positive $shiftSeconds delays subtitles; negative $shiftSeconds advances subtitles (e.g. when seeking a transcoded video).
+     */
+    public function shiftWebVttTimestamps(string $vttContent, float $shiftSeconds): string
+    {
+        if (abs($shiftSeconds) < 0.001) {
+            return $vttContent;
+        }
+
+        return (string) preg_replace_callback(
+            '/(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})/',
+            function (array $m) use ($shiftSeconds): string {
+                $rawStart = $this->parseVttTime($m[1]) + $shiftSeconds;
+                $rawEnd = $this->parseVttTime($m[2]) + $shiftSeconds;
+                $start = max(0.0, $rawStart);
+                $end = max($start + 0.1, $rawEnd);
+                return $this->formatVttTime($start) . ' --> ' . $this->formatVttTime($end);
+            },
+            $vttContent
+        );
+    }
+
+    private function parseVttTime(string $vttTime): float
+    {
+        [$hms, $ms] = array_pad(explode('.', $vttTime, 2), 2, '0');
+        $parts = array_map('intval', explode(':', $hms));
+        $hours = $parts[0] ?? 0;
+        $minutes = $parts[1] ?? 0;
+        $seconds = $parts[2] ?? 0;
+        return ($hours * 3600) + ($minutes * 60) + $seconds + (((int) $ms) / 1000.0);
+    }
+
+    private function formatVttTime(float $totalSeconds): string
+    {
+        $clamped = max(0.0, $totalSeconds);
+        $whole = (int) floor($clamped);
+        $ms = (int) round(($clamped - $whole) * 1000);
+        if ($ms >= 1000) {
+            $whole += 1;
+            $ms -= 1000;
+        }
+        $hours = intdiv($whole, 3600);
+        $minutes = intdiv($whole % 3600, 60);
+        $seconds = $whole % 60;
+        return sprintf('%02d:%02d:%02d.%03d', $hours, $minutes, $seconds, $ms);
     }
 
     private function normalizeVttContent(string $vttContent): string

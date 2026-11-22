@@ -113,7 +113,16 @@ OC.L10N.register(
     "Save Settings": "Salvar Configurações",
     "Saving...": "Salvando...",
     "Settings saved successfully.": "Configurações salvas com sucesso.",
-    "Failed to save settings.": "Falha ao salvar configurações."
+    "Failed to save settings.": "Falha ao salvar configurações.",
+    "Continue watching": "Continuar assistindo",
+    "Resume": "Retomar",
+    "Loading video...": "Carregando vídeo...",
+    "Advance subtitle (-0.5s)": "Adiantar legenda (-0.5s)",
+    "Delay subtitle (+0.5s)": "Atrasar legenda (+0.5s)",
+    "Subtitle synchronization offset": "Ajuste de sincronia da legenda",
+    "Decrease subtitle size": "Diminuir tamanho da legenda",
+    "Increase subtitle size": "Aumentar tamanho da legenda",
+    "Subtitle font size": "Tamanho da fonte da legenda"
   },
   "nplurals=2; plural=(n > 1);"
 );

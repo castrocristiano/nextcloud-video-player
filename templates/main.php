@@ -64,6 +64,17 @@ $appVersion = isset($_['appVersion']) ? (string) $_['appVersion'] : '0.1.0';
 			<button type="button" id="alertRetryBtn" class="ncvp-btn ncvp-btn-sm"><?php p($l->t('Refresh')); ?></button>
 		</div>
 
+		<section id="continueWatchingBanner" class="ncvp-continue-banner hidden" aria-label="<?php p($l->t('Continue watching')); ?>">
+			<div class="ncvp-continue-info">
+				<span class="ncvp-continue-badge"><?php p($l->t('Continue watching')); ?></span>
+				<strong id="continueWatchingTitle" class="ncvp-continue-title"></strong>
+				<span id="continueWatchingMeta" class="ncvp-continue-meta"></span>
+			</div>
+			<button type="button" id="continueWatchingBtn" class="ncvp-btn ncvp-btn-primary ncvp-btn-sm">
+				&#9654; <?php p($l->t('Resume')); ?>
+			</button>
+		</section>
+
 		<section id="foldersSection" class="ncvp-section hidden" aria-label="<?php p($l->t('Subfolders')); ?>">
 			<h2 class="ncvp-section-heading"><?php p($l->t('Folders')); ?> <span id="foldersCount" class="ncvp-badge">0</span></h2>
 			<div id="foldersGrid" class="ncvp-folders-grid"></div>
@@ -120,6 +131,11 @@ $appVersion = isset($_['appVersion']) ? (string) $_['appVersion'] : '0.1.0';
 
 			<div class="ncvp-player-stage" id="playerStage">
 				<video id="videoElement" preload="metadata" playsinline></video>
+				<div id="playerLoadingSpinner" class="ncvp-player-spinner hidden" role="status" aria-live="polite">
+					<div class="ncvp-spinner-ring" aria-hidden="true"></div>
+					<span class="ncvp-sr-only"><?php p($l->t('Loading video...')); ?></span>
+				</div>
+				<div id="subtitleOverlay" class="ncvp-subtitle-overlay hidden" aria-live="off"></div>
 
 				<div id="autoplayOverlay" class="ncvp-autoplay-overlay hidden">
 					<div class="ncvp-autoplay-card">
@@ -194,6 +210,16 @@ $appVersion = isset($_['appVersion']) ? (string) $_['appVersion'] : '0.1.0';
 						<select id="subtitleSelect" aria-label="<?php p($l->t('Select local subtitle')); ?>">
 							<option value="-1"><?php p($l->t('Disabled')); ?></option>
 						</select>
+						<div class="ncvp-sub-sync-group" id="subSyncGroup">
+							<button type="button" id="subSyncMinusBtn" class="ncvp-btn ncvp-btn-secondary ncvp-btn-sm" title="<?php p($l->t('Advance subtitle (-0.5s)')); ?>">-0.5s</button>
+							<span id="subSyncLabel" class="ncvp-seek-time" title="<?php p($l->t('Subtitle synchronization offset')); ?>">0.0s</span>
+							<button type="button" id="subSyncPlusBtn" class="ncvp-btn ncvp-btn-secondary ncvp-btn-sm" title="<?php p($l->t('Delay subtitle (+0.5s)')); ?>">+0.5s</button>
+						</div>
+						<div class="ncvp-sub-size-group" id="subSizeGroup">
+							<button type="button" id="subSizeMinusBtn" class="ncvp-btn ncvp-btn-secondary ncvp-btn-sm" title="<?php p($l->t('Decrease subtitle size')); ?>" aria-label="<?php p($l->t('Decrease subtitle size')); ?>">A-</button>
+							<span id="subSizeLabel" class="ncvp-seek-time" title="<?php p($l->t('Subtitle font size')); ?>">100%</span>
+							<button type="button" id="subSizePlusBtn" class="ncvp-btn ncvp-btn-secondary ncvp-btn-sm" title="<?php p($l->t('Increase subtitle size')); ?>" aria-label="<?php p($l->t('Increase subtitle size')); ?>">A+</button>
+						</div>
 					</div>
 
 					<div class="ncvp-toolbar-group">

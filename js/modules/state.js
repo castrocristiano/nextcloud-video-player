@@ -12,6 +12,9 @@ export function getDefaultPreferences() {
     volume: 1.0,
     muted: false,
     preferredSubtitle: null,
+    lastRootId: null,
+    lastFolderPath: null,
+    subtitleScale: 1.0,
   };
 }
 
@@ -19,6 +22,7 @@ export function createAppState() {
   return {
     userId: "",
     roots: [],
+    lastWatched: null,
     capabilities: { ffmpegEnabled: false },
     activeRootId: "",
     currentPath: "/",
@@ -36,6 +40,7 @@ export function createAppState() {
     triedTranscodeFallback: false,
     isTranscodedStream: false,
     transcodeBaseOffset: 0,
+    subtitleSyncOffset: 0,
     totalDuration: 0,
     isDraggingSeek: false,
     // Folder Picker state
@@ -52,6 +57,12 @@ export function loadCachedPreferences() {
       return defaults;
     }
     const parsed = JSON.parse(raw);
+    const parsedScale = Number(parsed.subtitleScale);
+    const subtitleScale =
+      Number.isFinite(parsedScale) && parsedScale > 0
+        ? Math.round(Math.min(2.0, Math.max(0.75, parsedScale)) * 100) / 100
+        : 1.0;
+
     return {
       playbackRate: Number(parsed.playbackRate) || 1.0,
       autoPlayNext:
@@ -63,6 +74,9 @@ export function loadCachedPreferences() {
           : 1.0,
       muted: Boolean(parsed.muted),
       preferredSubtitle: parsed.preferredSubtitle || null,
+      lastRootId: parsed.lastRootId || null,
+      lastFolderPath: parsed.lastFolderPath || null,
+      subtitleScale,
     };
   } catch {
     return defaults;

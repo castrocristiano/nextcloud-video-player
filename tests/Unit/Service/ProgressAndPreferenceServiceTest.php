@@ -10,6 +10,10 @@ use OCA\FolderVideoPlayer\Db\UserPreferenceEntity;
 use OCA\FolderVideoPlayer\Db\UserPreferenceMapper;
 use OCA\FolderVideoPlayer\Service\PreferenceService;
 use OCA\FolderVideoPlayer\Service\ProgressService;
+use OCA\FolderVideoPlayer\Service\SafeNodeResolver;
+use OCP\Files\File;
+use OCP\Files\Folder;
+use OCP\Files\IRootFolder;
 use PHPUnit\Framework\TestCase;
 
 class ProgressAndPreferenceServiceTest extends TestCase
@@ -94,8 +98,68 @@ class ProgressAndPreferenceServiceTest extends TestCase
         $afterInvalid = $service->updatePreferences('alice', [
             'playbackRate' => 99.0,
             'sortBy' => 'invalid_sort',
+            'subtitleScale' => 5.0,
+            'lastRootId' => 'rk_main',
+            'lastFolderPath' => '/Series/Season1',
         ]);
         $this->assertSame(1.5, $afterInvalid['playbackRate']);
         $this->assertSame('date_desc', $afterInvalid['sortBy']);
+        $this->assertSame(2.0, $afterInvalid['subtitleScale']);
+        $this->assertSame('rk_main', $afterInvalid['lastRootId']);
+        $this->assertSame('/Series/Season1', $afterInvalid['lastFolderPath']);
+
+        $afterTraversal = $service->updatePreferences('alice', [
+            'subtitleScale' => 0.1,
+            'lastFolderPath' => '/Series/../../etc',
+        ]);
+        $this->assertSame(0.75, $afterTraversal['subtitleScale']);
+        $this->assertNull($afterTraversal['lastFolderPath']);
+    }
+
+    public function testGetLastWatchedVideoReturnsMostRecentAccessibleUnfinishedVideo(): void
+    {
+        $entity = new PlaybackProgressEntity();
+        $entity->setUserId('alice');
+        $entity->setRootKey('rk1');
+        $entity->setRelativePath('/Movies/Wave.avi');
+        $entity->setPositionSeconds(420.0);
+        $entity->setDurationSeconds(3600.0);
+        $entity->setProgressRatio(0.1167);
+        $entity->setCompleted(false);
+        $entity->setUpdatedAt(1700000100);
+
+        $mapper = $this->createMock(PlaybackProgressMapper::class);
+        $mapper->method('findRecentUnfinishedForUser')->with('alice', 10)->willReturn([$entity]);
+
+        $file = $this->createMock(File::class);
+        $file->method('getName')->willReturn('Wave.avi');
+        $file->method('getPath')->willReturn('/alice/files/Media/Movies/Wave.avi');
+        $file->method('isReadable')->willReturn(true);
+
+        $rootFolderNode = $this->createMock(Folder::class);
+        $rootFolderNode->method('getPath')->willReturn('/alice/files/Media');
+        $rootFolderNode->method('isReadable')->willReturn(true);
+        $rootFolderNode->method('nodeExists')->with('Movies/Wave.avi')->willReturn(true);
+        $rootFolderNode->method('get')->with('Movies/Wave.avi')->willReturn($file);
+
+        $userFolder = $this->createMock(Folder::class);
+        $userFolder->method('nodeExists')->with('Media')->willReturn(true);
+        $userFolder->method('get')->with('Media')->willReturn($rootFolderNode);
+
+        $rootFolder = $this->createMock(IRootFolder::class);
+        $rootFolder->method('getUserFolder')->with('alice')->willReturn($userFolder);
+
+        $resolver = new SafeNodeResolver($rootFolder);
+        $service = new ProgressService($mapper);
+
+        $roots = [['id' => 'rk1', 'path' => '/Media', 'label' => 'Media', 'scope' => 'user']];
+        $lastWatched = $service->getLastWatchedVideo('alice', $roots, $resolver);
+
+        $this->assertNotNull($lastWatched);
+        $this->assertSame('rk1', $lastWatched['rootId']);
+        $this->assertSame('/Movies/Wave.avi', $lastWatched['relativePath']);
+        $this->assertSame('/Movies', $lastWatched['folderPath']);
+        $this->assertSame('Wave.avi', $lastWatched['name']);
+        $this->assertSame(420.0, $lastWatched['currentTime']);
     }
 }

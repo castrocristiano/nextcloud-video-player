@@ -1,7 +1,31 @@
 import { buildAppUrl } from "./api.js";
-import { formatBytes, formatDate } from "./formatters.js";
+import { formatBytes, formatDate, formatDuration } from "./formatters.js";
 import { t } from "./i18n.js";
 import { getVideoProgress } from "./state.js";
+
+export function renderContinueWatching(dom, state, onResumeLastWatched) {
+  if (!dom.continueWatchingBanner) {
+    return;
+  }
+  const lw = state.lastWatched;
+  if (!lw || !lw.rootId || !lw.relativePath) {
+    dom.continueWatchingBanner.classList.add("hidden");
+    return;
+  }
+
+  if (dom.continueWatchingTitle) {
+    dom.continueWatchingTitle.textContent = lw.name || lw.relativePath;
+  }
+  if (dom.continueWatchingMeta) {
+    const curStr = formatDuration(lw.currentTime || 0);
+    const durStr = lw.duration > 0 ? ` / ${formatDuration(lw.duration)}` : "";
+    dom.continueWatchingMeta.textContent = `${lw.rootLabel || ""} • ${curStr}${durStr}`;
+  }
+  if (dom.continueWatchingBtn) {
+    dom.continueWatchingBtn.onclick = () => onResumeLastWatched(lw);
+  }
+  dom.continueWatchingBanner.classList.remove("hidden");
+}
 
 export function renderRootsTabs(dom, state, onSelectRoot) {
   if (!dom.rootsTabs) {
