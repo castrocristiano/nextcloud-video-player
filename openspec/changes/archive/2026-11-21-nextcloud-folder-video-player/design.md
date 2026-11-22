@@ -2,7 +2,7 @@
 
 ## Context
 
-Este design detalha a arquitetura técnica do aplicativo Nextcloud **`nextcloud_video_player`** (compatível com **Nextcloud 30–32**, **PHP 8.2+**, frontend **Vanilla JS + CSS**), portando as funcionalidades comprovadas do projeto [lan-video-player](https://github.com/castrocristiano/lan-video-player) para o ecossistema Nextcloud com **persistência relacional em tabelas**, **controle formal de sessão** e **publicação oficial no catálogo da Nextcloud App Store (`apps.nextcloud.com`)**. Veja `proposal.md` para motivação e escopo, e `specs/*/spec.md` para os contratos comportamentais.
+Este design detalha a arquitetura técnica do aplicativo Nextcloud **`folder_video_player`** (compatível com **Nextcloud 30–32**, **PHP 8.2+**, frontend **Vanilla JS + CSS**), portando as funcionalidades comprovadas do projeto [lan-video-player](https://github.com/castrocristiano/lan-video-player) para o ecossistema Nextcloud com **persistência relacional em tabelas**, **controle formal de sessão** e **publicação oficial no catálogo da Nextcloud App Store (`apps.nextcloud.com`)**. Veja `proposal.md` para motivação e escopo, e `specs/*/spec.md` para os contratos comportamentais.
 
 Restrições fundamentais do ambiente alvo:
 - Nextcloud 30–32 com PHP 8.2+ (`declare(strict_types=1);`), injeção de dependência via `OCP\AppFramework\Bootstrap\IBootstrap`, migrações via `OCP\Migration\SimpleMigrationStep`, e proteção CSRF + CSP rigorosa (`default-src 'self'`).
@@ -21,13 +21,13 @@ Restrições fundamentais do ambiente alvo:
 
 **Non-Goals:**
 - Não implementar escrita em disco nas pastas de vídeo (nem sidecars `.vtt`, nem cache de miniaturas dentro das pastas de mídia).
-- Não usar `AppAPI` / microserviço externo na v1 (mantendo instalação simples via Nextcloud App Store ou tarball em `apps/nextcloud_video_player`).
+- Não usar `AppAPI` / microserviço externo na v1 (mantendo instalação simples via Nextcloud App Store ou tarball em `apps/folder_video_player`).
 - Não versionar chaves privadas de assinatura ou tokens da App Store no repositório Git.
 
 ## Decisions
 
 ### 1. Identificador e Estrutura do App Nextcloud
-- **Decisão**: Usar `appId` = `nextcloud_video_player` e namespace PHP `OCA\NextcloudVideoPlayer`.
+- **Decisão**: Usar `appId` = `folder_video_player` e namespace PHP `OCA\FolderVideoPlayer`.
 - **Justificativa**: O schema oficial do Nextcloud (`info.xsd`) exige `[a-z0-9_]` sem hífens para `<id>` e diretório em `apps/`. Alinha-se ao nome do repositório (`nextcloud-video-player`).
 - **Estrutura de Diretórios**:
   ```text
@@ -168,7 +168,7 @@ Restrições fundamentais do ambiente alvo:
    - **Índices**: `UNIQUE(session_token)`, `INDEX(user_id, status, expires_at)`, `INDEX(status, expires_at)`.
 
 ### 3. Controle de Sessão, Concorrência e Liberação de Lock PHP
-- **Autenticação & CSRF**: Todas as rotas ficam sob `/apps/nextcloud_video_player/` sem `@PublicPage` (exigindo `OCP\IUserSession::isLoggedIn()`). Rotas `POST`/`PUT`/`DELETE` exigem token CSRF nativo do Nextcloud (`OC.requestToken`).
+- **Autenticação & CSRF**: Todas as rotas ficam sob `/apps/folder_video_player/` sem `@PublicPage` (exigindo `OCP\IUserSession::isLoggedIn()`). Rotas `POST`/`PUT`/`DELETE` exigem token CSRF nativo do Nextcloud (`OC.requestToken`).
 - **Ciclo de Vida da Sessão de Reprodução**:
   1. **Abertura (`POST /api/v1/sessions`)**: Antes de criar, expira sessões vencidas (`expires_at < now`) do usuário; verifica `max_concurrent_sessions` (se > 0 e atingido, responde `429 Too Many Requests` com lista resumida de sessões ativas); cria registro `'active'` em `ncvp_playback_sessions` e retorna `sessionToken`, `expiresAt` e último progresso salvo em `ncvp_playback_progress`.
   2. **Streaming (`GET /api/v1/stream/{rootId}?path=...&sessionToken=...`)**: Valida que o `sessionToken` pertence ao `userId` autenticado, está `'active'`/`'paused'` e não expirou (`expires_at >= now`), valida o arquivo via `SafeNodeResolver` e chama **`OCP\ISession::close()`** antes de abrir o loop de leitura em chunks de 64 KiB ou o pipe `ffmpeg`.
@@ -208,15 +208,15 @@ Restrições fundamentais do ambiente alvo:
 ### 6. Implementação e Publicação no Catálogo Oficial do Nextcloud (Nextcloud App Store)
 - **Conformidade de `appinfo/info.xml`**:
   - Validado no CI contra o schema oficial `https://apps.nextcloud.com/schema/apps/info.xsd` via `xmllint --schema`.
-  - Campos obrigatórios preenchidos: `<id>nextcloud_video_player</id>`, `<name>`, `<summary>`, `<description>`, `<version>`, `<licence>agpl</licence>`, `<author>`, `<namespace>NextcloudVideoPlayer</namespace>`, `<category>multimedia</category>`, `<website>`, `<bugs>`, `<repository type="git">`, `<screenshot>` (apontando para imagens PNG em `screenshots/` via raw GitHub URL), `<dependencies><php min-version="8.2" max-version="8.4" /><nextcloud min-version="30" max-version="32" /></dependencies>`, `<navigations>` e `<settings><admin>`.
+  - Campos obrigatórios preenchidos: `<id>folder_video_player</id>`, `<name>`, `<summary>`, `<description>`, `<version>`, `<licence>agpl</licence>`, `<author>`, `<namespace>FolderVideoPlayer</namespace>`, `<category>multimedia</category>`, `<website>`, `<bugs>`, `<repository type="git">`, `<screenshot>` (apontando para imagens PNG em `screenshots/` via raw GitHub URL), `<dependencies><php min-version="8.2" max-version="8.4" /><nextcloud min-version="30" max-version="32" /></dependencies>`, `<navigations>` e `<settings><admin>`.
 - **Registro Único do App e Certificado (Code Signing)**:
-  1. Gerar chave privada RSA 4096 e CSR (`nextcloud_video_player.key` / `nextcloud_video_player.csr` com `CN=nextcloud_video_player`).
-  2. Registrar o app em `https://apps.nextcloud.com/developer/apps/register` submetendo o CSR para receber o certificado assinado (`nextcloud_video_player.crt`) e gerar o API Token em *My Account → API-Token*.
+  1. Gerar chave privada RSA 4096 e CSR (`folder_video_player.key` / `folder_video_player.csr` com `CN=folder_video_player`).
+  2. Registrar o app em `https://apps.nextcloud.com/developer/apps/register` submetendo o CSR para receber o certificado assinado (`folder_video_player.crt`) e gerar o API Token em *My Account → API-Token*.
   3. Armazenar **exclusivamente** como Secrets no GitHub Actions: `NC_APP_PRIVATE_KEY`, `NC_APP_CERTIFICATE` e `NC_APPSTORE_TOKEN`.
 - **Pipeline Automatizado de Release & App Store (`release-on-main` em `.github/workflows/ci.yml`)**:
-  1. Montar diretório temporário limpo `nextcloud_video_player/` contendo apenas arquivos de runtime (`appinfo/`, `lib/`, `js/`, `css/`, `templates/`, `img/`, `l10n/`, `LICENSE`, `README.md`, `CHANGELOG.md`).
+  1. Montar diretório temporário limpo `folder_video_player/` contendo apenas arquivos de runtime (`appinfo/`, `lib/`, `js/`, `css/`, `templates/`, `img/`, `l10n/`, `LICENSE`, `README.md`, `CHANGELOG.md`).
   2. Se `NC_APP_PRIVATE_KEY` e `NC_APP_CERTIFICATE` estiverem definidos: gerar `appinfo/signature.json` (assinatura de integridade de cada arquivo do pacote compatível com `occ integrity:check-app`) **antes** de compactar.
-  3. Compactar `nextcloud_video_player-${TAG}.tar.gz` e publicar como asset da **GitHub Release** (`gh release create`), obtendo sua URL pública HTTPS.
+  3. Compactar `folder_video_player-${TAG}.tar.gz` e publicar como asset da **GitHub Release** (`gh release create`), obtendo sua URL pública HTTPS.
   4. Se `NC_APPSTORE_TOKEN`, `NC_APP_PRIVATE_KEY` e `NC_APP_CERTIFICATE` estiverem definidos: assinar o `.tar.gz` (`openssl dgst -sha512 -sign key.pem tarball.tar.gz | openssl base64 -A`) e publicar na API oficial via `POST https://apps.nextcloud.com/api/v1/apps/releases` com cabeçalho `Authorization: Token ${NC_APPSTORE_TOKEN}` e payload JSON `{ "download": "<url>", "signature": "<base64>", "nightly": false }`.
   5. Caso os segredos ainda não existam, concluir a GitHub Release normalmente e emitir `::warning::` orientando quais segredos configurar.
 
@@ -225,8 +225,8 @@ Restrições fundamentais do ambiente alvo:
 - **Justificativa**: Mantém compatibilidade total com a CSP do Nextcloud (0 bibliotecas externas), respeita automaticamente o idioma selecionado pelo usuário no perfil do Nextcloud e permite adicionar novos idiomas (ex.: `es`, `fr`, `de`) apenas adicionando novos pares `l10n/<locale>.json` e `l10n/<locale>.js` (inclusive integrável ao Transifex da comunidade Nextcloud).
 - **Implementação Backend & Frontend**:
   - **PHP (`OCP\IL10N`)**: Templates (`templates/main.php`, `templates/admin.php`), `AdminSection`, `Application` (rótulo do menu) e mensagens de erro amigáveis de controllers usam `$this->l10n->t('...')` e `$this->l10n->n('...', '...', $count)` com textos fonte em inglês (`en`).
-  - **JavaScript (`js/modules/i18n.js`)**: Exporta `t(text, vars)`, `n(singular, plural, count, vars)` e `getLocale()` delegando para `window.t` / `window.n` / `OC.L10N.translate('nextcloud_video_player', ...)` com fallback seguro para a string fonte em inglês (`en`) em testes Vitest ou quando a chave não existir no catálogo ativo. `formatDate()` em `formatters.js` usa `Intl.DateTimeFormat(getLocale(), ...)`.
-  - **Catálogos `l10n/`**: `l10n/pt_BR.json` (consumido pelo PHP `IL10N`) e `l10n/pt_BR.js` (`OC.L10N.register('nextcloud_video_player', { ... }, pluralForm)` carregado automaticamente pelo Nextcloud no navegador). Um teste automatizado verifica consistência entre `l10n/pt_BR.json` e `l10n/pt_BR.js` (mesmas chaves e ausência de entradas vazias).
+  - **JavaScript (`js/modules/i18n.js`)**: Exporta `t(text, vars)`, `n(singular, plural, count, vars)` e `getLocale()` delegando para `window.t` / `window.n` / `OC.L10N.translate('folder_video_player', ...)` com fallback seguro para a string fonte em inglês (`en`) em testes Vitest ou quando a chave não existir no catálogo ativo. `formatDate()` em `formatters.js` usa `Intl.DateTimeFormat(getLocale(), ...)`.
+  - **Catálogos `l10n/`**: `l10n/pt_BR.json` (consumido pelo PHP `IL10N`) e `l10n/pt_BR.js` (`OC.L10N.register('folder_video_player', { ... }, pluralForm)` carregado automaticamente pelo Nextcloud no navegador). Um teste automatizado verifica consistência entre `l10n/pt_BR.json` e `l10n/pt_BR.js` (mesmas chaves e ausência de entradas vazias).
   - **Metadados `appinfo/info.xml`**: `<name>`, `<summary>` e `<description>` padrão em inglês (`en`) acompanhados de `<summary lang="pt_BR">` e `<description lang="pt_BR">`.
 
 ### 8. Frontend Vanilla JS Modular e Compatibilidade CSP
@@ -246,7 +246,7 @@ Restrições fundamentais do ambiente alvo:
 
 1. **Instalação via Catálogo Nextcloud (App Store) ou Tarball de Release**:
    - Via App Store: *Apps → Multimídia → Nextcloud Video Player → Baixar e ativar*.
-   - Manual/offline: extrair `nextcloud_video_player-v<versão>.tar.gz` em `custom_apps/nextcloud_video_player` e executar `occ app:enable nextcloud_video_player`.
+   - Manual/offline: extrair `folder_video_player-v<versão>.tar.gz` em `custom_apps/folder_video_player` e executar `occ app:enable folder_video_player`.
 2. **Migração Automática de Banco**: Ao ativar o app, o Nextcloud executa `Version0001Date20261121000000` criando automaticamente as 4 tabelas `ncvp_*` no banco configurado (PostgreSQL, MariaDB/MySQL ou SQLite).
-3. **Verificação de Integridade**: Executar `occ integrity:check-app nextcloud_video_player` para confirmar assinatura válida.
-4. **Rollback Seguro**: `occ app:disable nextcloud_video_player` e remoção do diretório do app; nenhum arquivo de mídia do usuário é alterado em nenhuma etapa.
+3. **Verificação de Integridade**: Executar `occ integrity:check-app folder_video_player` para confirmar assinatura válida.
+4. **Rollback Seguro**: `occ app:disable folder_video_player` e remoção do diretório do app; nenhum arquivo de mídia do usuário é alterado em nenhuma etapa.

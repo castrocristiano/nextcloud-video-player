@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace OCA\NextcloudVideoPlayer\Tests\Unit\Service;
+namespace OCA\FolderVideoPlayer\Tests\Unit\Service;
 
-use OCA\NextcloudVideoPlayer\Service\SubtitleService;
+use OCA\FolderVideoPlayer\Service\SubtitleService;
 use OCP\Files\File;
 use PHPUnit\Framework\TestCase;
 

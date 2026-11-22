@@ -23,7 +23,7 @@ describe("api and session manager modules", () => {
   it("builds URLs, attaches CSRF token, and handles HTTP errors", async () => {
     expect(getRequestToken()).toBe("csrf_tok_123");
     expect(buildAppUrl("/api/v1/roots", { sort: "name_asc", empty: "" })).toBe(
-      "/nc/apps/nextcloud_video_player/api/v1/roots?sort=name_asc"
+      "/nc/apps/folder_video_player/api/v1/roots?sort=name_asc"
     );
 
     globalThis.fetch = vi.fn().mockResolvedValueOnce({

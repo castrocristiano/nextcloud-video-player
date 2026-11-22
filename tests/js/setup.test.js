@@ -63,7 +63,7 @@ describe("i18n module and l10n pt_BR catalog parity", () => {
     const runner = new Function("OC", jsCode);
     runner(window.OC);
 
-    expect(registeredApp).toBe("nextcloud_video_player");
+    expect(registeredApp).toBe("folder_video_player");
     expect(registeredPlural).toBe(catalogJson.pluralForm);
     expect(Object.keys(registeredDict)).toEqual(
       Object.keys(catalogJson.translations)

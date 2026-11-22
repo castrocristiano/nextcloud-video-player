@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace OCA\NextcloudVideoPlayer\Controller;
+namespace OCA\FolderVideoPlayer\Controller;
 
 use InvalidArgumentException;
-use OCA\NextcloudVideoPlayer\AppInfo\Application;
-use OCA\NextcloudVideoPlayer\Service\FfmpegService;
-use OCA\NextcloudVideoPlayer\Service\FolderConfigService;
+use OCA\FolderVideoPlayer\AppInfo\Application;
+use OCA\FolderVideoPlayer\Service\FfmpegService;
+use OCA\FolderVideoPlayer\Service\FolderConfigService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;

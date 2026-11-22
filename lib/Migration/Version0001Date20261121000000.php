@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace OCA\NextcloudVideoPlayer\Migration;
+namespace OCA\FolderVideoPlayer\Migration;
 
 use Closure;
 use OCP\DB\ISchemaWrapper;

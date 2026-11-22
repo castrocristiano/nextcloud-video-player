@@ -2,7 +2,7 @@
 
 ## Visão Geral
 
-O **nextcloud-video-player** (`appId: nextcloud_video_player`) adapta a experiência do `lan-video-player` para dentro do ecossistema **Nextcloud 30–32 (PHP 8.2+)**:
+O **nextcloud-video-player** (`appId: folder_video_player`) adapta a experiência do `lan-video-player` para dentro do ecossistema **Nextcloud 30–32 (PHP 8.2+)**:
 
 - **Backend PHP (`lib/`)**:
   - Utiliza exclusivamente `OCP\Files\IRootFolder` para acessar a árvore virtual do usuário autenticado, respeitando nativamente compartilhamentos, quotas, ACLs e montagens de *External Storage*.

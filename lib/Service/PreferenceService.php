@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace OCA\NextcloudVideoPlayer\Service;
+namespace OCA\FolderVideoPlayer\Service;
 
-use OCA\NextcloudVideoPlayer\Db\UserPreferenceEntity;
-use OCA\NextcloudVideoPlayer\Db\UserPreferenceMapper;
+use OCA\FolderVideoPlayer\Db\UserPreferenceEntity;
+use OCA\FolderVideoPlayer\Db\UserPreferenceMapper;
 
 class PreferenceService
 {

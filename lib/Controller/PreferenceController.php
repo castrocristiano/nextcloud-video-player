@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace OCA\NextcloudVideoPlayer\Controller;
+namespace OCA\FolderVideoPlayer\Controller;
 
-use OCA\NextcloudVideoPlayer\Service\PreferenceService;
+use OCA\FolderVideoPlayer\Service\PreferenceService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;

@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace OCA\NextcloudVideoPlayer\Tests\Unit\Controller;
+namespace OCA\FolderVideoPlayer\Tests\Unit\Controller;
 
-use OCA\NextcloudVideoPlayer\Controller\PreferenceController;
-use OCA\NextcloudVideoPlayer\Controller\SessionController;
-use OCA\NextcloudVideoPlayer\Service\ConcurrentSessionLimitException;
-use OCA\NextcloudVideoPlayer\Service\PlaybackSessionService;
-use OCA\NextcloudVideoPlayer\Service\PreferenceService;
+use OCA\FolderVideoPlayer\Controller\PreferenceController;
+use OCA\FolderVideoPlayer\Controller\SessionController;
+use OCA\FolderVideoPlayer\Service\ConcurrentSessionLimitException;
+use OCA\FolderVideoPlayer\Service\PlaybackSessionService;
+use OCA\FolderVideoPlayer\Service\PreferenceService;
 use OCP\AppFramework\Http;
 use OCP\IL10N;
 use OCP\IRequest;
@@ -66,7 +66,7 @@ class SessionAndPreferenceControllerTest extends TestCase
         $l10n = $this->createMock(IL10N::class);
         $l10n->method('t')->willReturnArgument(0);
 
-        $controller = new SessionController('nextcloud_video_player', $request, $sessionService, $userSession, $l10n);
+        $controller = new SessionController('folder_video_player', $request, $sessionService, $userSession, $l10n);
 
         $start1 = $controller->start();
         $this->assertSame(Http::STATUS_CREATED, $start1->getStatus());
@@ -122,7 +122,7 @@ class SessionAndPreferenceControllerTest extends TestCase
         $l10n = $this->createMock(IL10N::class);
         $l10n->method('t')->willReturnArgument(0);
 
-        $controller = new PreferenceController('nextcloud_video_player', $request, $prefService, $userSession, $l10n);
+        $controller = new PreferenceController('folder_video_player', $request, $prefService, $userSession, $l10n);
         $this->assertSame(Http::STATUS_OK, $controller->get()->getStatus());
         $upd = $controller->update();
         $this->assertSame(Http::STATUS_OK, $upd->getStatus());

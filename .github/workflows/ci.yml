@@ -308,7 +308,7 @@ jobs:
             fi
           fi
 
-          APP_ID="nextcloud_video_player"
+          APP_ID="folder_video_player"
           PKG_DIR=$(mktemp -d)
           APP_PKG_PATH="${PKG_DIR}/${APP_ID}"
           mkdir -p "$APP_PKG_PATH"

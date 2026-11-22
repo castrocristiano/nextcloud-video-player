@@ -6,7 +6,7 @@ context: |
   Keep OpenSpec structural headings (## Why, ## What Changes, ## Capabilities, ## Impact, ## ADDED Requirements, ### Requirement:, #### Scenario:) and RFC 2119 keywords (SHALL, MUST, SHOULD, MAY) in English to preserve OpenSpec CLI validation compatibility.
   All source code (PHP, JavaScript, CSS), identifiers, classes, methods, routes, comments, docblocks, and automated test names MUST be written in English (en-US).
 
-  Project: nextcloud-video-player (Nextcloud App ID: `nextcloud_video_player`)
+  Project: nextcloud-video-player (Nextcloud App ID: `folder_video_player`)
   Reference project: `castrocristiano/lan-video-player` (local LAN video player with read-only media browsing, HTTP Range streaming, optional FFmpeg transcoding/thumbnails, YouTube-style fullscreen player, keyboard/TV shortcuts, playback speed, subtitles .vtt/.srt, audio track selector, resume progress, autoplay next countdown, search and sort).
 
   Target Platform & Stack:

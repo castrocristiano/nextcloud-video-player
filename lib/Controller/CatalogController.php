@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace OCA\NextcloudVideoPlayer\Controller;
+namespace OCA\FolderVideoPlayer\Controller;
 
 use InvalidArgumentException;
-use OCA\NextcloudVideoPlayer\Service\FolderConfigService;
-use OCA\NextcloudVideoPlayer\Service\SafeNodeResolver;
-use OCA\NextcloudVideoPlayer\Service\SubtitleService;
-use OCA\NextcloudVideoPlayer\Service\VideoCatalogService;
+use OCA\FolderVideoPlayer\Service\FolderConfigService;
+use OCA\FolderVideoPlayer\Service\SafeNodeResolver;
+use OCA\FolderVideoPlayer\Service\SubtitleService;
+use OCA\FolderVideoPlayer\Service\VideoCatalogService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;

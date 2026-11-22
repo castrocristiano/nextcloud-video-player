@@ -1,4 +1,4 @@
-# nextcloud-video-player (`nextcloud_video_player`)
+# nextcloud-video-player (`folder_video_player`)
 
 Aplicativo (plugin) para **Nextcloud 30–32 (PHP 8.2+)** que traz a experiência de biblioteca e player de vídeo do [lan-video-player](https://github.com/castrocristiano/lan-video-player) diretamente para o Nextcloud, reproduzindo vídeos organizados em **pastas selecionadas já configuradas** (modelo híbrido: pastas globais configuradas pelo administrador + pastas pessoais escolhidas pelo usuário), com **persistência relacional em tabelas**, **controle formal de sessão**, **internacionalização multi-idioma (`en` padrão + `pt_BR`)** e pronto para o **catálogo oficial da Nextcloud App Store (`apps.nextcloud.com`)**.
 
@@ -30,15 +30,15 @@ Aplicativo (plugin) para **Nextcloud 30–32 (PHP 8.2+)** que traz a experiênci
 
 ### Opção A — Via Catálogo Oficial (Nextcloud App Store)
 1. No painel do Nextcloud como Administrador, acesse **Aplicativos (Apps) → Multimídia (Multimedia)**.
-2. Localize **Nextcloud Video Player** (`nextcloud_video_player`) e clique em **Baixar e ativar**.
+2. Localize **Nextcloud Video Player** (`folder_video_player`) e clique em **Baixar e ativar**.
 
 ### Opção B — Via Pacote `.tar.gz` da GitHub Release (ou Manual)
 ```bash
 # Extrair na pasta custom_apps (ou apps) da instalação Nextcloud:
-tar -xzf nextcloud_video_player-v0.1.0.tar.gz -C /var/www/html/custom_apps/
+tar -xzf folder_video_player-v0.1.0.tar.gz -C /var/www/html/custom_apps/
 
 # Ativar o aplicativo (executa automaticamente as migrações das tabelas ncvp_*):
-php occ app:enable nextcloud_video_player
+php occ app:enable folder_video_player
 ```
 
 ---
@@ -50,14 +50,14 @@ O job `release-on-main` em [.github/workflows/ci.yml](.github/workflows/ci.yml) 
 1. Gere a chave privada e o CSR do aplicativo:
    ```bash
    openssl req -new -newkey rsa:4096 -nodes \
-     -keyout nextcloud_video_player.key \
-     -out nextcloud_video_player.csr \
-     -subj "/CN=nextcloud_video_player"
+     -keyout folder_video_player.key \
+     -out folder_video_player.csr \
+     -subj "/CN=folder_video_player"
    ```
-2. Acesse `https://apps.nextcloud.com/developer/apps/register`, envie o conteúdo de `nextcloud_video_player.csr` para baixar o certificado `nextcloud_video_player.crt` e gere seu token em *My Account → API-Token*.
+2. Acesse `https://apps.nextcloud.com/developer/apps/register`, envie o conteúdo de `folder_video_player.csr` para baixar o certificado `folder_video_player.crt` e gere seu token em *My Account → API-Token*.
 3. Configure os 3 **Secrets** no repositório GitHub (*Settings → Secrets and variables → Actions*):
-   - `NC_APP_PRIVATE_KEY`: conteúdo PEM de `nextcloud_video_player.key`
-   - `NC_APP_CERTIFICATE`: conteúdo PEM de `nextcloud_video_player.crt`
+   - `NC_APP_PRIVATE_KEY`: conteúdo PEM de `folder_video_player.key`
+   - `NC_APP_CERTIFICATE`: conteúdo PEM de `folder_video_player.crt`
    - `NC_APPSTORE_TOKEN`: token da API da Nextcloud App Store
 
 ---

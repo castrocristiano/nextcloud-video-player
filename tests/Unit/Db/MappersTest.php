@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace OCA\NextcloudVideoPlayer\Tests\Unit\Db;
+namespace OCA\FolderVideoPlayer\Tests\Unit\Db;
 
-use OCA\NextcloudVideoPlayer\Db\FolderEntity;
-use OCA\NextcloudVideoPlayer\Db\FolderMapper;
-use OCA\NextcloudVideoPlayer\Db\PlaybackProgressEntity;
-use OCA\NextcloudVideoPlayer\Db\PlaybackProgressMapper;
-use OCA\NextcloudVideoPlayer\Db\PlaybackSessionEntity;
-use OCA\NextcloudVideoPlayer\Db\PlaybackSessionMapper;
-use OCA\NextcloudVideoPlayer\Db\UserPreferenceEntity;
-use OCA\NextcloudVideoPlayer\Db\UserPreferenceMapper;
+use OCA\FolderVideoPlayer\Db\FolderEntity;
+use OCA\FolderVideoPlayer\Db\FolderMapper;
+use OCA\FolderVideoPlayer\Db\PlaybackProgressEntity;
+use OCA\FolderVideoPlayer\Db\PlaybackProgressMapper;
+use OCA\FolderVideoPlayer\Db\PlaybackSessionEntity;
+use OCA\FolderVideoPlayer\Db\PlaybackSessionMapper;
+use OCA\FolderVideoPlayer\Db\UserPreferenceEntity;
+use OCA\FolderVideoPlayer\Db\UserPreferenceMapper;
 use OCP\DB\QueryBuilder\IExpressionBuilder;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\DB\QueryBuilder\IResult;

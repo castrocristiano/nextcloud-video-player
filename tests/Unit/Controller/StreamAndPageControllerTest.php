@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace OCA\NextcloudVideoPlayer\Tests\Unit\Controller;
+namespace OCA\FolderVideoPlayer\Tests\Unit\Controller;
 
-use OCA\NextcloudVideoPlayer\Controller\PageController;
-use OCA\NextcloudVideoPlayer\Controller\StreamController;
-use OCA\NextcloudVideoPlayer\Db\PlaybackSessionEntity;
-use OCA\NextcloudVideoPlayer\Service\FfmpegService;
-use OCA\NextcloudVideoPlayer\Service\FolderConfigService;
-use OCA\NextcloudVideoPlayer\Service\MediaStreamService;
-use OCA\NextcloudVideoPlayer\Service\PlaybackSessionService;
-use OCA\NextcloudVideoPlayer\Service\ProgressService;
-use OCA\NextcloudVideoPlayer\Service\SafeNodeResolver;
-use OCA\NextcloudVideoPlayer\Service\SubtitleService;
-use OCA\NextcloudVideoPlayer\Service\VideoCatalogService;
+use OCA\FolderVideoPlayer\Controller\PageController;
+use OCA\FolderVideoPlayer\Controller\StreamController;
+use OCA\FolderVideoPlayer\Db\PlaybackSessionEntity;
+use OCA\FolderVideoPlayer\Service\FfmpegService;
+use OCA\FolderVideoPlayer\Service\FolderConfigService;
+use OCA\FolderVideoPlayer\Service\MediaStreamService;
+use OCA\FolderVideoPlayer\Service\PlaybackSessionService;
+use OCA\FolderVideoPlayer\Service\ProgressService;
+use OCA\FolderVideoPlayer\Service\SafeNodeResolver;
+use OCA\FolderVideoPlayer\Service\SubtitleService;
+use OCA\FolderVideoPlayer\Service\VideoCatalogService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\ICallbackResponse;
 use OCP\AppFramework\Http\IOutput;
@@ -108,7 +108,7 @@ class StreamAndPageControllerTest extends TestCase
         $l10n->method('t')->willReturnArgument(0);
 
         $controller = new StreamController(
-            'nextcloud_video_player',
+            'folder_video_player',
             $request,
             $folderService,
             $resolver,
@@ -147,7 +147,7 @@ class StreamAndPageControllerTest extends TestCase
     public function testPageControllerConfiguresStrictCsp(): void
     {
         $request = $this->createMock(IRequest::class);
-        $pageController = new PageController('nextcloud_video_player', $request);
+        $pageController = new PageController('folder_video_player', $request);
         $resp = $pageController->index();
 
         $this->assertSame('main', $resp->getTemplateName());

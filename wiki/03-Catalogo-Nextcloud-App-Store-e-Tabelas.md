@@ -2,7 +2,7 @@
 
 ## 1. Esquema Relacional (`lib/Migration/Version0001Date20261121000000.php`)
 
-Ao ativar o aplicativo (`occ app:enable nextcloud_video_player`), o Nextcloud cria automaticamente 4 tabelas prefixadas por `ncvp_` (compatíveis com PostgreSQL, MariaDB/MySQL e SQLite):
+Ao ativar o aplicativo (`occ app:enable folder_video_player`), o Nextcloud cria automaticamente 4 tabelas prefixadas por `ncvp_` (compatíveis com PostgreSQL, MariaDB/MySQL e SQLite):
 
 1. **`ncvp_folders`**: armazena pastas globais pré-configuradas pelo Admin (`scope = 'global'`) e pastas pessoais por usuário (`scope = 'user'`), com índice único `(scope, user_id, path_hash)`.
 2. **`ncvp_playback_progress`**: sincroniza o ponto de retomada de cada vídeo entre diferentes dispositivos da mesma conta Nextcloud, zerando automaticamente após `>= 95%` de conclusão.

@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace OCA\NextcloudVideoPlayer\Controller;
+namespace OCA\FolderVideoPlayer\Controller;
 
 use InvalidArgumentException;
-use OCA\NextcloudVideoPlayer\Service\ConcurrentSessionLimitException;
-use OCA\NextcloudVideoPlayer\Service\PlaybackSessionService;
+use OCA\FolderVideoPlayer\Service\ConcurrentSessionLimitException;
+use OCA\FolderVideoPlayer\Service\PlaybackSessionService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;

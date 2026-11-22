@@ -20,11 +20,11 @@ The system SHALL provide an `appinfo/info.xml` validated strictly against the of
 - **THEN** o aplicativo aparece com nome, resumo, descrição, ícone e capturas de tela corretos, registra sua entrada no menu de navegação principal e disponibiliza sua página nas Configurações de Administração
 
 ### Requirement: Clean runtime-only release tarball packaging
-The system SHALL package each release as a deterministic `.tar.gz` archive rooted at the app directory `nextcloud_video_player/` containing only runtime production files and excluding development, test, specification, and CI artifacts.
+The system SHALL package each release as a deterministic `.tar.gz` archive rooted at the app directory `folder_video_player/` containing only runtime production files and excluding development, test, specification, and CI artifacts.
 
 #### Scenario: Inspecting a packaged release archive
 - **GIVEN** a esteira de release na branch `main` empacota uma nova versão do aplicativo
-- **WHEN** o arquivo `nextcloud_video_player-v<versão>.tar.gz` é gerado
+- **WHEN** o arquivo `folder_video_player-v<versão>.tar.gz` é gerado
 - **THEN** o pacote contém apenas os diretórios e arquivos necessários para execução (`appinfo/`, `lib/`, `js/`, `css/`, `templates/`, `img/`, `l10n/`, `LICENSE`, `README.md`, `CHANGELOG.md`) e exclui `tests/`, `openspec/`, `.github/`, `wiki/`, `node_modules/` e arquivos locais de ambiente
 
 ### Requirement: Cryptographic code signing and release signature
@@ -37,7 +37,7 @@ The system MUST sign the packaged application to generate `appinfo/signature.jso
 
 #### Scenario: Nextcloud integrity check passes after installation
 - **GIVEN** um administrador instala o pacote assinado a partir da Nextcloud App Store ou da GitHub Release
-- **WHEN** o Nextcloud executa a verificação de integridade de código (`occ integrity:check-app nextcloud_video_player`)
+- **WHEN** o Nextcloud executa a verificação de integridade de código (`occ integrity:check-app folder_video_player`)
 - **THEN** o aplicativo é aprovado sem avisos de arquivos inválidos, ausentes ou adulterados
 
 ### Requirement: Automated publishing to Nextcloud App Store API
