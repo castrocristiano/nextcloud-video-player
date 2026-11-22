@@ -1725,7 +1725,9 @@ class VideoPlayerController {
       }
       this.sessionManager
         .sendHeartbeat({
-          currentTime: Number(videoElement.currentTime) || 0,
+          currentTime:
+            (Number(videoElement.currentTime) || 0) +
+            (this.state.transcodeBaseOffset || 0),
           duration:
             this.state.totalDuration || Number(videoElement.duration) || 0,
           status: "paused",
@@ -1964,7 +1966,9 @@ class VideoPlayerController {
     this.pendingDirectResume = false;
     this.setLoadingSpinner(false);
     const { dom, state } = this;
-    const cur = Number(dom.videoElement?.currentTime) || 0;
+    const cur =
+      (Number(dom.videoElement?.currentTime) || 0) +
+      (state.transcodeBaseOffset || 0);
     const dur = state.totalDuration || Number(dom.videoElement?.duration) || 0;
 
     if (dom.videoElement) {
