@@ -57,7 +57,25 @@ class PlaybackProgressMapper extends QBMapper
         $qb = $this->db->getQueryBuilder();
         $qb->select('*')
             ->from($this->getTableName())
-            ->where($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)));
+            ->where($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)))
+            ->orderBy('updated_at', 'DESC');
+
+        return $this->findEntities($qb);
+    }
+
+    /**
+     * @return list<PlaybackProgressEntity>
+     */
+    public function findRecentUnfinishedForUser(string $userId, int $limit = 10): array
+    {
+        $qb = $this->db->getQueryBuilder();
+        $qb->select('*')
+            ->from($this->getTableName())
+            ->where($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)))
+            ->andWhere($qb->expr()->eq('completed', $qb->createNamedParameter(false, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_BOOL)))
+            ->andWhere($qb->expr()->gt('position_seconds', $qb->createNamedParameter(3.0)))
+            ->orderBy('updated_at', 'DESC')
+            ->setMaxResults(max(1, $limit));
 
         return $this->findEntities($qb);
     }

@@ -11,7 +11,7 @@ The system SHALL display an accessible, offline CSS loading spinner overlay insi
 - **THEN** o palco do vídeo exibe o spinner centralizado sobre a área do player (tanto em janela quanto em tela cheia), ocultando-o automaticamente assim que o navegador dispara `canplay`, `playing`, `seeked` ou `error`
 
 ### Requirement: Responsive seek, fast-forward, and rewind controls
-The system SHALL update the displayed playback timestamp immediately on forward/rewind/seek interactions, debounce rapid consecutive seek steps on transcoded streams, and fast-seek the backend stream without decoding all preceding frames from timestamp zero whenever supported.
+The system SHALL update the displayed playback timestamp immediately on forward/rewind/seek interactions, debounce rapid consecutive seek steps on transcoded streams, cache ffprobe/catalog metadata via Nextcloud cache outside media folders, and fast-seek the backend stream without decoding all preceding frames from timestamp zero whenever supported.
 
 #### Scenario: Rapid consecutive forward or rewind clicks on a transcoded video
 - **GIVEN** o usuário está assistindo a um vídeo em modo transcodificado (`FFmpeg`) e clica rapidamente três vezes em `+10s` (ou pressiona `→` três vezes)

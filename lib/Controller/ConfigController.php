@@ -8,6 +8,8 @@ use InvalidArgumentException;
 use OCA\FolderVideoPlayer\AppInfo\Application;
 use OCA\FolderVideoPlayer\Service\FfmpegService;
 use OCA\FolderVideoPlayer\Service\FolderConfigService;
+use OCA\FolderVideoPlayer\Service\ProgressService;
+use OCA\FolderVideoPlayer\Service\SafeNodeResolver;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -27,7 +29,9 @@ class ConfigController extends Controller
         private FolderConfigService $folderConfigService,
         private FfmpegService $ffmpegService,
         private IUserSession $userSession,
-        private IL10N $l10n
+        private IL10N $l10n,
+        private ?ProgressService $progressService = null,
+        private ?SafeNodeResolver $safeNodeResolver = null
     ) {
         parent::__construct($appName, $request);
     }
@@ -45,8 +49,19 @@ class ConfigController extends Controller
             return $userId;
         }
 
+        $effectiveRoots = $this->folderConfigService->getEffectiveRoots($userId);
+        $lastWatched = null;
+        if ($this->progressService !== null && $this->safeNodeResolver !== null) {
+            $lastWatched = $this->progressService->getLastWatchedVideo(
+                $userId,
+                $effectiveRoots,
+                $this->safeNodeResolver
+            );
+        }
+
         return new DataResponse([
-            'roots' => $this->folderConfigService->getEffectiveRoots($userId),
+            'roots' => $effectiveRoots,
+            'lastWatched' => $lastWatched,
             'browseBase' => [
                 'enabled' => true,
                 'label' => $this->l10n->t('Nextcloud Files'),

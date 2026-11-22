@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   renderBreadcrumbs,
   renderCatalog,
+  renderContinueWatching,
   renderRootsTabs,
 } from "../../js/modules/catalog.js";
 import {
@@ -18,6 +19,11 @@ import { createAppState } from "../../js/modules/state.js";
 function setupDomFixture() {
   document.body.innerHTML = `
     <section id="rootsBarSection"><div id="rootsTabs"></div></section>
+    <section id="continueWatchingBanner" class="hidden">
+      <strong id="continueWatchingTitle"></strong>
+      <span id="continueWatchingMeta"></span>
+      <button id="continueWatchingBtn" type="button"></button>
+    </section>
     <ol id="breadcrumbsList"></ol>
     <section id="foldersSection"><span id="foldersCount"></span><div id="foldersGrid"></div></section>
     <section id="videosSection"><span id="videosCount"></span><div id="videosGrid"></div></section>
@@ -40,6 +46,8 @@ function setupDomFixture() {
         <button id="closePlayerBtn"></button>
         <div id="resumeBanner" class="hidden"><span id="resumeBannerText"></span><button id="restartFromBeginningBtn"></button></div>
         <div id="playerErrorBanner" class="hidden"><button id="errorBackToLibBtn"></button></div>
+        <div id="playerLoadingSpinner" class="hidden"></div>
+        <div id="subtitleOverlay" class="hidden"></div>
         <video id="videoElement"></video>
         <div id="autoplayOverlay" class="hidden">
           <strong id="autoplayCountdown"></strong>
@@ -58,6 +66,9 @@ function setupDomFixture() {
         <button id="fullscreenBtn"></button>
         <select id="speedSelect"><option value="1">1.0x</option><option value="1.5">1.5x</option></select>
         <select id="subtitleSelect"></select>
+        <button id="subSizeMinusBtn"></button>
+        <span id="subSizeLabel">100%</span>
+        <button id="subSizePlusBtn"></button>
         <select id="audioTrackSelect"></select>
         <input type="checkbox" id="autoplayNextCheckbox" checked />
       </dialog>
@@ -66,6 +77,10 @@ function setupDomFixture() {
 
   return {
     rootsBarSection: document.getElementById("rootsBarSection"),
+    continueWatchingBanner: document.getElementById("continueWatchingBanner"),
+    continueWatchingTitle: document.getElementById("continueWatchingTitle"),
+    continueWatchingMeta: document.getElementById("continueWatchingMeta"),
+    continueWatchingBtn: document.getElementById("continueWatchingBtn"),
     rootsTabs: document.getElementById("rootsTabs"),
     breadcrumbsList: document.getElementById("breadcrumbsList"),
     foldersSection: document.getElementById("foldersSection"),
@@ -95,6 +110,8 @@ function setupDomFixture() {
     restartFromBeginningBtn: document.getElementById("restartFromBeginningBtn"),
     playerErrorBanner: document.getElementById("playerErrorBanner"),
     errorBackToLibBtn: document.getElementById("errorBackToLibBtn"),
+    playerLoadingSpinner: document.getElementById("playerLoadingSpinner"),
+    subtitleOverlay: document.getElementById("subtitleOverlay"),
     videoElement: document.getElementById("videoElement"),
     autoplayOverlay: document.getElementById("autoplayOverlay"),
     autoplayCountdown: document.getElementById("autoplayCountdown"),
@@ -112,6 +129,9 @@ function setupDomFixture() {
     fullscreenBtn: document.getElementById("fullscreenBtn"),
     speedSelect: document.getElementById("speedSelect"),
     subtitleSelect: document.getElementById("subtitleSelect"),
+    subSizeMinusBtn: document.getElementById("subSizeMinusBtn"),
+    subSizeLabel: document.getElementById("subSizeLabel"),
+    subSizePlusBtn: document.getElementById("subSizePlusBtn"),
     audioTrackSelect: document.getElementById("audioTrackSelect"),
     autoplayNextCheckbox: document.getElementById("autoplayNextCheckbox"),
   };
@@ -348,7 +368,7 @@ describe("catalog, picker, and player modules", () => {
     });
     dom.subtitleSelect.value = "0";
     dom.subtitleSelect.dispatchEvent(new Event("change"));
-    expect(dom.videoElement.textTracks[0].mode).toBe("showing");
+    expect(dom.videoElement.textTracks[0].mode).toBe("hidden");
 
     Object.defineProperty(dom.videoElement, "audioTracks", {
       value: [
@@ -371,5 +391,65 @@ describe("catalog, picker, and player modules", () => {
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "k" }));
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
     expect(dom.playerModal.classList.contains("hidden")).toBe(true);
+  });
+
+  it("renders continue watching banner, adjusts subtitle font scale with bounds, toggles spinner, and debounces transcoded seek", async () => {
+    const dom = setupDomFixture();
+    const state = createAppState();
+    state.lastWatched = {
+      rootId: "u1",
+      rootLabel: "Videos",
+      relativePath: "/Movies/Wave.avi",
+      folderPath: "/Movies",
+      name: "Wave.avi",
+      currentTime: 300,
+      duration: 3600,
+    };
+
+    const resumeCb = vi.fn();
+    renderContinueWatching(dom, state, resumeCb);
+    expect(dom.continueWatchingBanner.classList.contains("hidden")).toBe(false);
+    expect(dom.continueWatchingTitle.textContent).toBe("Wave.avi");
+    dom.continueWatchingBtn.click();
+    expect(resumeCb).toHaveBeenCalledWith(state.lastWatched);
+
+    dom.videoElement.play = vi.fn().mockResolvedValue(undefined);
+    dom.videoElement.pause = vi.fn();
+    const sessionManager = new PlaybackSessionManager(state);
+    const player = new VideoPlayerController(dom, state, sessionManager);
+    player.bindEvents();
+
+    // Subtitle font size bounds (75% .. 200%)
+    dom.subSizePlusBtn.click();
+    expect(dom.subSizeLabel.textContent).toBe("125%");
+    expect(dom.subtitleOverlay.style.getPropertyValue("--ncvp-subtitle-scale")).toBe("1.25");
+    for (let i = 0; i < 6; i++) dom.subSizePlusBtn.click();
+    expect(dom.subSizeLabel.textContent).toBe("200%");
+    for (let i = 0; i < 10; i++) dom.subSizeMinusBtn.click();
+    expect(dom.subSizeLabel.textContent).toBe("75%");
+
+    // Spinner lifecycle
+    dom.videoElement.dispatchEvent(new Event("waiting"));
+    expect(dom.playerLoadingSpinner.classList.contains("hidden")).toBe(false);
+    dom.videoElement.dispatchEvent(new Event("playing"));
+    expect(dom.playerLoadingSpinner.classList.contains("hidden")).toBe(true);
+
+    // Debounced transcoded seek accumulates rapid +10s clicks
+    vi.useFakeTimers();
+    state.isTranscodedStream = true;
+    state.totalDuration = 1200;
+    state.currentVideo = { id: "u1:/Wave.avi", rootId: "u1", relativePath: "/Wave.avi", name: "Wave.avi" };
+    const switchSpy = vi.spyOn(player, "switchToTranscodedStream").mockResolvedValue(undefined);
+
+    dom.seekFwdBtn.click();
+    dom.seekFwdBtn.click();
+    dom.seekFwdBtn.click();
+    expect(dom.currentTimeLabel.textContent).toBe("00:30");
+    expect(switchSpy).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(350);
+    expect(switchSpy).toHaveBeenCalledTimes(1);
+    expect(switchSpy).toHaveBeenCalledWith(state.currentVideo, 30);
+    vi.useRealTimers();
   });
 });

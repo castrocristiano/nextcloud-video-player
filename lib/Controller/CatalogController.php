@@ -54,9 +54,10 @@ class CatalogController extends Controller
         $rootId = (string) $this->request->getParam('rootId', '');
         $path = (string) $this->request->getParam('path', '');
         $sortBy = (string) $this->request->getParam('sort', 'name_asc');
+        $forceRefresh = filter_var($this->request->getParam('refresh', false), FILTER_VALIDATE_BOOLEAN);
 
         try {
-            $data = $this->catalogService->listFolder($userId, $rootId, $path, $sortBy);
+            $data = $this->catalogService->listFolder($userId, $rootId, $path, $sortBy, $forceRefresh);
             return new DataResponse($data);
         } catch (InvalidArgumentException $e) {
             return $this->errorResponse($this->l10n->t($e->getMessage()), Http::STATUS_BAD_REQUEST);

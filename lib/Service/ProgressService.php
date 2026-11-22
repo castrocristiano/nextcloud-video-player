@@ -100,6 +100,56 @@ class ProgressService
         return $this->entityToArray($entity);
     }
 
+    /**
+     * Returns the most recently watched unfinished video belonging to an accessible configured root.
+     *
+     * @param list<array{id: string, path: string, label: string, scope: string}> $effectiveRoots
+     * @return array{rootId: string, rootLabel: string, relativePath: string, folderPath: string, name: string, currentTime: float, duration: float, progressRatio: float, updatedAt: int}|null
+     */
+    public function getLastWatchedVideo(
+        string $userId,
+        array $effectiveRoots,
+        SafeNodeResolver $resolver
+    ): ?array {
+        if ($effectiveRoots === []) {
+            return null;
+        }
+
+        $candidates = $this->progressMapper->findRecentUnfinishedForUser($userId, 10);
+        foreach ($candidates as $entity) {
+            if ($entity->getCompleted() || $entity->getPositionSeconds() <= 3.0) {
+                continue;
+            }
+            try {
+                $resolved = $resolver->resolveFileInRoot(
+                    $userId,
+                    $entity->getRootKey(),
+                    $entity->getRelativePath(),
+                    $effectiveRoots
+                );
+                $file = $resolved['file'];
+                $dirName = dirname($resolved['relativePath']);
+                $folderPath = ($dirName === '.' || $dirName === DIRECTORY_SEPARATOR) ? '/' : $dirName;
+
+                return [
+                    'rootId' => $resolved['root']['id'],
+                    'rootLabel' => $resolved['root']['label'],
+                    'relativePath' => $resolved['relativePath'],
+                    'folderPath' => $folderPath,
+                    'name' => $file->getName(),
+                    'currentTime' => $entity->getPositionSeconds(),
+                    'duration' => $entity->getDurationSeconds(),
+                    'progressRatio' => $entity->getProgressRatio(),
+                    'updatedAt' => $entity->getUpdatedAt(),
+                ];
+            } catch (\Throwable) {
+                continue;
+            }
+        }
+
+        return null;
+    }
+
     private function normalizeProgressPath(string $relativePath): string
     {
         $trimmed = trim($relativePath);

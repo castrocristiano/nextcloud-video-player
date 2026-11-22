@@ -7,6 +7,7 @@ namespace OCA\FolderVideoPlayer\Service;
 use OCP\Files\File;
 use OCP\Files\Folder;
 use OCP\Files\NotFoundException;
+use OCP\ICacheFactory;
 
 class VideoCatalogService
 {
@@ -37,7 +38,8 @@ class VideoCatalogService
         private FolderConfigService $folderConfigService,
         private SafeNodeResolver $safeNodeResolver,
         private SubtitleService $subtitleService,
-        private ProgressService $progressService
+        private ProgressService $progressService,
+        private ?ICacheFactory $cacheFactory = null
     ) {
     }
 
@@ -48,7 +50,8 @@ class VideoCatalogService
         string $userId,
         string $rootKey,
         string $relativePath = '',
-        string $sortBy = 'name_asc'
+        string $sortBy = 'name_asc',
+        bool $forceRefresh = false
     ): array {
         $effectiveRoots = $this->folderConfigService->getEffectiveRoots($userId);
         $resolved = $this->safeNodeResolver->resolveNodeInRoot($userId, $rootKey, $relativePath, $effectiveRoots);
@@ -60,9 +63,23 @@ class VideoCatalogService
         $rootMeta = $resolved['root'];
         $cleanRel = ltrim($resolved['relativePath'], '/');
         $currentPath = $cleanRel === '' ? '/' : '/' . $cleanRel;
+        $progressMap = $this->progressService->getProgressMapForRoot($userId, $rootKey);
+
+        $cache = $this->cacheFactory?->createDistributed('folder_video_player_catalog');
+        $cacheKey = sprintf('cat_%s_%s_%s_%s', hash('sha256', $userId), $rootKey, hash('sha256', $currentPath), $sortBy);
+        if (!$forceRefresh && $cache !== null) {
+            $cached = $cache->get($cacheKey);
+            if (is_array($cached) && isset($cached['folders'], $cached['videos'])) {
+                foreach ($cached['videos'] as &$videoItem) {
+                    $rel = (string) ($videoItem['relativePath'] ?? '');
+                    $videoItem['progress'] = $progressMap[$rel] ?? null;
+                }
+                unset($videoItem);
+                return $cached;
+            }
+        }
 
         $children = $targetNode->getDirectoryListing();
-        $progressMap = $this->progressService->getProgressMapForRoot($userId, $rootKey);
 
         $folders = [];
         $videos = [];
@@ -104,13 +121,17 @@ class VideoCatalogService
         $this->sortItems($folders, $sortBy);
         $this->sortItems($videos, $sortBy);
 
-        return [
+        $payload = [
             'root' => $rootMeta,
             'currentPath' => $currentPath,
             'breadcrumbs' => $this->buildBreadcrumbs($rootMeta['label'], $cleanRel),
             'folders' => $folders,
             'videos' => $videos,
         ];
+
+        $cache?->set($cacheKey, $payload, 60);
+
+        return $payload;
     }
 
     /**

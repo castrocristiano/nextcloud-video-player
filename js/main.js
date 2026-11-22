@@ -294,6 +294,9 @@ function getDefaultPreferences() {
     volume: 1.0,
     muted: false,
     preferredSubtitle: null,
+    lastRootId: null,
+    lastFolderPath: null,
+    subtitleScale: 1.0,
   };
 }
 
@@ -301,6 +304,7 @@ function createAppState() {
   return {
     userId: "",
     roots: [],
+    lastWatched: null,
     capabilities: { ffmpegEnabled: false },
     activeRootId: "",
     currentPath: "/",
@@ -335,6 +339,12 @@ function loadCachedPreferences() {
       return defaults;
     }
     const parsed = JSON.parse(raw);
+    const parsedScale = Number(parsed.subtitleScale);
+    const subtitleScale =
+      Number.isFinite(parsedScale) && parsedScale > 0
+        ? Math.round(Math.min(2.0, Math.max(0.75, parsedScale)) * 100) / 100
+        : 1.0;
+
     return {
       playbackRate: Number(parsed.playbackRate) || 1.0,
       autoPlayNext:
@@ -346,6 +356,9 @@ function loadCachedPreferences() {
           : 1.0,
       muted: Boolean(parsed.muted),
       preferredSubtitle: parsed.preferredSubtitle || null,
+      lastRootId: parsed.lastRootId || null,
+      lastFolderPath: parsed.lastFolderPath || null,
+      subtitleScale,
     };
   } catch {
     return defaults;
@@ -596,6 +609,30 @@ class PlaybackSessionManager {
 }
 
   // --- js/modules/catalog.js ---
+function renderContinueWatching(dom, state, onResumeLastWatched) {
+  if (!dom.continueWatchingBanner) {
+    return;
+  }
+  const lw = state.lastWatched;
+  if (!lw || !lw.rootId || !lw.relativePath) {
+    dom.continueWatchingBanner.classList.add("hidden");
+    return;
+  }
+
+  if (dom.continueWatchingTitle) {
+    dom.continueWatchingTitle.textContent = lw.name || lw.relativePath;
+  }
+  if (dom.continueWatchingMeta) {
+    const curStr = formatDuration(lw.currentTime || 0);
+    const durStr = lw.duration > 0 ? ` / ${formatDuration(lw.duration)}` : "";
+    dom.continueWatchingMeta.textContent = `${lw.rootLabel || ""} • ${curStr}${durStr}`;
+  }
+  if (dom.continueWatchingBtn) {
+    dom.continueWatchingBtn.onclick = () => onResumeLastWatched(lw);
+  }
+  dom.continueWatchingBanner.classList.remove("hidden");
+}
+
 function renderRootsTabs(dom, state, onSelectRoot) {
   if (!dom.rootsTabs) {
     return;
@@ -934,6 +971,10 @@ async function removeUserRootFromLibrary(state, rootId) {
   // --- js/modules/player.js ---
 const FULLSCREEN_HIDE_DELAY_MS = 2500;
 const AUTOPLAY_COUNTDOWN_SECONDS = 5;
+const MIN_SUBTITLE_SCALE = 0.75;
+const MAX_SUBTITLE_SCALE = 2.0;
+const SUBTITLE_SCALE_STEP = 0.25;
+const TRANSCODE_SEEK_DEBOUNCE_MS = 300;
 const TRANSCODE_EXTENSIONS = new Set([
   "avi",
   "mkv",
@@ -964,7 +1005,45 @@ class VideoPlayerController {
     this.onCatalogRefresh = onCatalogRefresh;
     this.fsHideTimer = null;
     this.autoplayTimer = null;
+    this.seekDebounceTimer = null;
+    this.pendingSeekTarget = null;
     this.autoplayRemaining = AUTOPLAY_COUNTDOWN_SECONDS;
+  }
+
+  setLoadingSpinner(visible) {
+    if (!this.dom.playerLoadingSpinner) {
+      return;
+    }
+    if (visible) {
+      this.dom.playerLoadingSpinner.classList.remove("hidden");
+    } else {
+      this.dom.playerLoadingSpinner.classList.add("hidden");
+    }
+  }
+
+  applySubtitleScale(scale) {
+    const clamped =
+      Math.round(
+        Math.min(MAX_SUBTITLE_SCALE, Math.max(MIN_SUBTITLE_SCALE, Number(scale) || 1.0)) *
+          100
+      ) / 100;
+    this.state.prefs.subtitleScale = clamped;
+    if (this.dom.subtitleOverlay) {
+      this.dom.subtitleOverlay.style.setProperty(
+        "--ncvp-subtitle-scale",
+        String(clamped)
+      );
+    }
+    if (this.dom.subSizeLabel) {
+      this.dom.subSizeLabel.textContent = `${Math.round(clamped * 100)}%`;
+    }
+    return clamped;
+  }
+
+  adjustSubtitleSize(delta) {
+    const current = Number(this.state.prefs?.subtitleScale) || 1.0;
+    const next = this.applySubtitleScale(current + delta);
+    savePreferencesToServer(this.state, { subtitleScale: next });
   }
 
   bindEvents() {
@@ -1030,6 +1109,16 @@ class VideoPlayerController {
     dom.subSyncPlusBtn?.addEventListener("click", () => {
       this.adjustSubtitleSyncOffset(0.5);
     });
+
+    dom.subSizeMinusBtn?.addEventListener("click", () => {
+      this.adjustSubtitleSize(-SUBTITLE_SCALE_STEP);
+    });
+
+    dom.subSizePlusBtn?.addEventListener("click", () => {
+      this.adjustSubtitleSize(SUBTITLE_SCALE_STEP);
+    });
+
+    this.applySubtitleScale(state.prefs?.subtitleScale ?? 1.0);
 
     dom.audioTrackSelect?.addEventListener("change", () => {
       this.applySelectedAudioTrack(Number(dom.audioTrackSelect.value));
@@ -1110,11 +1199,37 @@ class VideoPlayerController {
       }
     });
 
+    dom.videoElement.addEventListener("loadstart", () => {
+      this.setLoadingSpinner(true);
+    });
+
+    dom.videoElement.addEventListener("waiting", () => {
+      this.setLoadingSpinner(true);
+    });
+
+    dom.videoElement.addEventListener("seeking", () => {
+      this.setLoadingSpinner(true);
+    });
+
+    dom.videoElement.addEventListener("canplay", () => {
+      this.setLoadingSpinner(false);
+    });
+
+    dom.videoElement.addEventListener("playing", () => {
+      this.setLoadingSpinner(false);
+    });
+
+    dom.videoElement.addEventListener("seeked", () => {
+      this.setLoadingSpinner(false);
+    });
+
     dom.videoElement.addEventListener("ended", () => {
+      this.setLoadingSpinner(false);
       this.handleVideoEnded();
     });
 
     dom.videoElement.addEventListener("error", () => {
+      this.setLoadingSpinner(false);
       if (
         state.capabilities?.ffmpegEnabled &&
         !state.isTranscodedStream &&
@@ -1146,6 +1261,9 @@ class VideoPlayerController {
     }
 
     this.cancelAutoplayCountdown();
+    this.cancelPendingSeek();
+    this.setLoadingSpinner(true);
+    this.applySubtitleScale(state.prefs?.subtitleScale ?? 1.0);
     const video = videos[index];
     state.currentVideoIndex = index;
     state.currentVideo = video;
@@ -1565,11 +1683,21 @@ class VideoPlayerController {
     }
   }
 
+  cancelPendingSeek() {
+    if (this.seekDebounceTimer) {
+      clearTimeout(this.seekDebounceTimer);
+      this.seekDebounceTimer = null;
+    }
+    this.pendingSeekTarget = null;
+  }
+
   seekRelative(deltaSeconds) {
-    const cur =
-      (Number(this.dom.videoElement?.currentTime) || 0) +
-      (this.state.transcodeBaseOffset || 0);
-    this.seekToSeconds(Math.max(0, cur + deltaSeconds));
+    const baseCur =
+      this.pendingSeekTarget !== null
+        ? this.pendingSeekTarget
+        : (Number(this.dom.videoElement?.currentTime) || 0) +
+          (this.state.transcodeBaseOffset || 0);
+    this.seekToSeconds(Math.max(0, baseCur + deltaSeconds));
   }
 
   seekToSeconds(targetSeconds) {
@@ -1581,8 +1709,27 @@ class VideoPlayerController {
     if (Number.isFinite(maxDur) && maxDur > 0) {
       clamped = Math.min(maxDur, clamped);
     }
+
+    if (this.dom.currentTimeLabel) {
+      this.dom.currentTimeLabel.textContent = formatDuration(clamped);
+    }
+    if (this.dom.seekSlider) {
+      this.dom.seekSlider.value = String(Math.floor(clamped));
+    }
+
     if (this.state.isTranscodedStream && this.state.currentVideo) {
-      this.switchToTranscodedStream(this.state.currentVideo, clamped);
+      this.pendingSeekTarget = clamped;
+      this.setLoadingSpinner(true);
+      if (this.seekDebounceTimer) {
+        clearTimeout(this.seekDebounceTimer);
+      }
+      const targetVideo = this.state.currentVideo;
+      this.seekDebounceTimer = setTimeout(() => {
+        this.seekDebounceTimer = null;
+        const finalTarget = this.pendingSeekTarget ?? clamped;
+        this.pendingSeekTarget = null;
+        this.switchToTranscodedStream(targetVideo, finalTarget);
+      }, TRANSCODE_SEEK_DEBOUNCE_MS);
       return;
     }
     this.dom.videoElement.currentTime = clamped;
@@ -1735,6 +1882,8 @@ class VideoPlayerController {
 
   async closePlayer() {
     this.cancelAutoplayCountdown();
+    this.cancelPendingSeek();
+    this.setLoadingSpinner(false);
     const { dom, state } = this;
     const cur = Number(dom.videoElement?.currentTime) || 0;
     const dur = state.totalDuration || Number(dom.videoElement?.duration) || 0;
@@ -1819,6 +1968,10 @@ function collectDom() {
     alertBanner: document.getElementById("alertBanner"),
     alertMessage: document.getElementById("alertMessage"),
     alertRetryBtn: document.getElementById("alertRetryBtn"),
+    continueWatchingBanner: document.getElementById("continueWatchingBanner"),
+    continueWatchingTitle: document.getElementById("continueWatchingTitle"),
+    continueWatchingMeta: document.getElementById("continueWatchingMeta"),
+    continueWatchingBtn: document.getElementById("continueWatchingBtn"),
     foldersSection: document.getElementById("foldersSection"),
     foldersCount: document.getElementById("foldersCount"),
     foldersGrid: document.getElementById("foldersGrid"),
@@ -1846,6 +1999,7 @@ function collectDom() {
     playerErrorBanner: document.getElementById("playerErrorBanner"),
     errorBackToLibBtn: document.getElementById("errorBackToLibBtn"),
     videoElement: document.getElementById("videoElement"),
+    playerLoadingSpinner: document.getElementById("playerLoadingSpinner"),
     subtitleOverlay: document.getElementById("subtitleOverlay"),
     autoplayOverlay: document.getElementById("autoplayOverlay"),
     autoplayCountdown: document.getElementById("autoplayCountdown"),
@@ -1857,6 +2011,9 @@ function collectDom() {
     subSyncMinusBtn: document.getElementById("subSyncMinusBtn"),
     subSyncLabel: document.getElementById("subSyncLabel"),
     subSyncPlusBtn: document.getElementById("subSyncPlusBtn"),
+    subSizeMinusBtn: document.getElementById("subSizeMinusBtn"),
+    subSizeLabel: document.getElementById("subSizeLabel"),
+    subSizePlusBtn: document.getElementById("subSizePlusBtn"),
     audioTrackSelect: document.getElementById("audioTrackSelect"),
     autoplayNextCheckbox: document.getElementById("autoplayNextCheckbox"),
     playPauseBtn: document.getElementById("playPauseBtn"),
@@ -1897,6 +2054,18 @@ async function bootApp() {
   const sessionManager = new PlaybackSessionManager(state);
 
   const refreshView = () => {
+    renderContinueWatching(dom, state, async (lw) => {
+      state.activeRootId = lw.rootId;
+      state.currentPath = lw.folderPath || "/";
+      state.isSearching = false;
+      await loadCurrentFolder();
+      const idx = (state.videos || []).findIndex(
+        (v) => v.relativePath === lw.relativePath
+      );
+      if (idx >= 0) {
+        player.openVideoByIndex(idx).catch((err) => showAlert(err.message));
+      }
+    });
     renderRootsTabs(dom, state, (rootId) => {
       state.activeRootId = rootId;
       state.currentPath = "/";
@@ -1969,8 +2138,29 @@ async function bootApp() {
       state.breadcrumbs = data.breadcrumbs || [];
       state.folders = data.folders || [];
       state.videos = data.videos || [];
+      if (
+        state.prefs.lastRootId !== state.activeRootId ||
+        state.prefs.lastFolderPath !== state.currentPath
+      ) {
+        savePreferencesToServer(state, {
+          lastRootId: state.activeRootId,
+          lastFolderPath: state.currentPath,
+        });
+      }
       refreshView();
     } catch (err) {
+      if (
+        (err.status === 404 || err.status === 403) &&
+        state.currentPath !== "/"
+      ) {
+        state.currentPath = "/";
+        savePreferencesToServer(state, {
+          lastRootId: state.activeRootId,
+          lastFolderPath: "/",
+        });
+        await loadCurrentFolder();
+        return;
+      }
       showAlert(err.message);
       refreshView();
     }
@@ -2009,15 +2199,24 @@ async function bootApp() {
     try {
       const data = await apiGet("/api/v1/roots");
       state.roots = data.roots || [];
+      state.lastWatched = data.lastWatched || null;
       state.userId = data.meta?.userId || "";
       state.capabilities = data.capabilities || { ffmpegEnabled: false };
-      if (
-        state.roots.length > 0 &&
-        !state.roots.some((r) => r.id === state.activeRootId)
-      ) {
-        state.activeRootId = state.roots[0].id;
-        state.currentPath = "/";
-      } else if (state.roots.length === 0) {
+      if (state.roots.length > 0) {
+        if (!state.activeRootId) {
+          const savedRootId = state.prefs?.lastRootId;
+          if (savedRootId && state.roots.some((r) => r.id === savedRootId)) {
+            state.activeRootId = savedRootId;
+            state.currentPath = state.prefs?.lastFolderPath || "/";
+          } else {
+            state.activeRootId = state.roots[0].id;
+            state.currentPath = "/";
+          }
+        } else if (!state.roots.some((r) => r.id === state.activeRootId)) {
+          state.activeRootId = state.roots[0].id;
+          state.currentPath = "/";
+        }
+      } else {
         state.activeRootId = "";
       }
       await loadCurrentFolder();

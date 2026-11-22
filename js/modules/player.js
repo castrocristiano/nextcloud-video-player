@@ -5,6 +5,10 @@ import { getVideoProgress, recordLocalVideoProgress, savePreferencesToServer } f
 
 export const FULLSCREEN_HIDE_DELAY_MS = 2500;
 export const AUTOPLAY_COUNTDOWN_SECONDS = 5;
+export const MIN_SUBTITLE_SCALE = 0.75;
+export const MAX_SUBTITLE_SCALE = 2.0;
+export const SUBTITLE_SCALE_STEP = 0.25;
+export const TRANSCODE_SEEK_DEBOUNCE_MS = 300;
 export const TRANSCODE_EXTENSIONS = new Set([
   "avi",
   "mkv",
@@ -35,7 +39,45 @@ export class VideoPlayerController {
     this.onCatalogRefresh = onCatalogRefresh;
     this.fsHideTimer = null;
     this.autoplayTimer = null;
+    this.seekDebounceTimer = null;
+    this.pendingSeekTarget = null;
     this.autoplayRemaining = AUTOPLAY_COUNTDOWN_SECONDS;
+  }
+
+  setLoadingSpinner(visible) {
+    if (!this.dom.playerLoadingSpinner) {
+      return;
+    }
+    if (visible) {
+      this.dom.playerLoadingSpinner.classList.remove("hidden");
+    } else {
+      this.dom.playerLoadingSpinner.classList.add("hidden");
+    }
+  }
+
+  applySubtitleScale(scale) {
+    const clamped =
+      Math.round(
+        Math.min(MAX_SUBTITLE_SCALE, Math.max(MIN_SUBTITLE_SCALE, Number(scale) || 1.0)) *
+          100
+      ) / 100;
+    this.state.prefs.subtitleScale = clamped;
+    if (this.dom.subtitleOverlay) {
+      this.dom.subtitleOverlay.style.setProperty(
+        "--ncvp-subtitle-scale",
+        String(clamped)
+      );
+    }
+    if (this.dom.subSizeLabel) {
+      this.dom.subSizeLabel.textContent = `${Math.round(clamped * 100)}%`;
+    }
+    return clamped;
+  }
+
+  adjustSubtitleSize(delta) {
+    const current = Number(this.state.prefs?.subtitleScale) || 1.0;
+    const next = this.applySubtitleScale(current + delta);
+    savePreferencesToServer(this.state, { subtitleScale: next });
   }
 
   bindEvents() {
@@ -101,6 +143,16 @@ export class VideoPlayerController {
     dom.subSyncPlusBtn?.addEventListener("click", () => {
       this.adjustSubtitleSyncOffset(0.5);
     });
+
+    dom.subSizeMinusBtn?.addEventListener("click", () => {
+      this.adjustSubtitleSize(-SUBTITLE_SCALE_STEP);
+    });
+
+    dom.subSizePlusBtn?.addEventListener("click", () => {
+      this.adjustSubtitleSize(SUBTITLE_SCALE_STEP);
+    });
+
+    this.applySubtitleScale(state.prefs?.subtitleScale ?? 1.0);
 
     dom.audioTrackSelect?.addEventListener("change", () => {
       this.applySelectedAudioTrack(Number(dom.audioTrackSelect.value));
@@ -181,11 +233,37 @@ export class VideoPlayerController {
       }
     });
 
+    dom.videoElement.addEventListener("loadstart", () => {
+      this.setLoadingSpinner(true);
+    });
+
+    dom.videoElement.addEventListener("waiting", () => {
+      this.setLoadingSpinner(true);
+    });
+
+    dom.videoElement.addEventListener("seeking", () => {
+      this.setLoadingSpinner(true);
+    });
+
+    dom.videoElement.addEventListener("canplay", () => {
+      this.setLoadingSpinner(false);
+    });
+
+    dom.videoElement.addEventListener("playing", () => {
+      this.setLoadingSpinner(false);
+    });
+
+    dom.videoElement.addEventListener("seeked", () => {
+      this.setLoadingSpinner(false);
+    });
+
     dom.videoElement.addEventListener("ended", () => {
+      this.setLoadingSpinner(false);
       this.handleVideoEnded();
     });
 
     dom.videoElement.addEventListener("error", () => {
+      this.setLoadingSpinner(false);
       if (
         state.capabilities?.ffmpegEnabled &&
         !state.isTranscodedStream &&
@@ -217,6 +295,9 @@ export class VideoPlayerController {
     }
 
     this.cancelAutoplayCountdown();
+    this.cancelPendingSeek();
+    this.setLoadingSpinner(true);
+    this.applySubtitleScale(state.prefs?.subtitleScale ?? 1.0);
     const video = videos[index];
     state.currentVideoIndex = index;
     state.currentVideo = video;
@@ -636,11 +717,21 @@ export class VideoPlayerController {
     }
   }
 
+  cancelPendingSeek() {
+    if (this.seekDebounceTimer) {
+      clearTimeout(this.seekDebounceTimer);
+      this.seekDebounceTimer = null;
+    }
+    this.pendingSeekTarget = null;
+  }
+
   seekRelative(deltaSeconds) {
-    const cur =
-      (Number(this.dom.videoElement?.currentTime) || 0) +
-      (this.state.transcodeBaseOffset || 0);
-    this.seekToSeconds(Math.max(0, cur + deltaSeconds));
+    const baseCur =
+      this.pendingSeekTarget !== null
+        ? this.pendingSeekTarget
+        : (Number(this.dom.videoElement?.currentTime) || 0) +
+          (this.state.transcodeBaseOffset || 0);
+    this.seekToSeconds(Math.max(0, baseCur + deltaSeconds));
   }
 
   seekToSeconds(targetSeconds) {
@@ -652,8 +743,27 @@ export class VideoPlayerController {
     if (Number.isFinite(maxDur) && maxDur > 0) {
       clamped = Math.min(maxDur, clamped);
     }
+
+    if (this.dom.currentTimeLabel) {
+      this.dom.currentTimeLabel.textContent = formatDuration(clamped);
+    }
+    if (this.dom.seekSlider) {
+      this.dom.seekSlider.value = String(Math.floor(clamped));
+    }
+
     if (this.state.isTranscodedStream && this.state.currentVideo) {
-      this.switchToTranscodedStream(this.state.currentVideo, clamped);
+      this.pendingSeekTarget = clamped;
+      this.setLoadingSpinner(true);
+      if (this.seekDebounceTimer) {
+        clearTimeout(this.seekDebounceTimer);
+      }
+      const targetVideo = this.state.currentVideo;
+      this.seekDebounceTimer = setTimeout(() => {
+        this.seekDebounceTimer = null;
+        const finalTarget = this.pendingSeekTarget ?? clamped;
+        this.pendingSeekTarget = null;
+        this.switchToTranscodedStream(targetVideo, finalTarget);
+      }, TRANSCODE_SEEK_DEBOUNCE_MS);
       return;
     }
     this.dom.videoElement.currentTime = clamped;
@@ -806,6 +916,8 @@ export class VideoPlayerController {
 
   async closePlayer() {
     this.cancelAutoplayCountdown();
+    this.cancelPendingSeek();
+    this.setLoadingSpinner(false);
     const { dom, state } = this;
     const cur = Number(dom.videoElement?.currentTime) || 0;
     const dur = state.totalDuration || Number(dom.videoElement?.duration) || 0;

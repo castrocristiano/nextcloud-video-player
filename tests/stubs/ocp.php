@@ -123,6 +123,24 @@ namespace OCP {
         }
     }
 
+    if (!interface_exists(ICache::class)) {
+        interface ICache
+        {
+            public function get(string $key): mixed;
+            public function set(string $key, mixed $value, int $ttl = 0): bool;
+            public function remove(string $key): bool;
+            public function hasKey(string $key): bool;
+        }
+    }
+
+    if (!interface_exists(ICacheFactory::class)) {
+        interface ICacheFactory
+        {
+            public function createDistributed(string $prefix = ''): ICache;
+            public function createLocal(string $prefix = ''): ICache;
+        }
+    }
+
     if (!interface_exists(IDBConnection::class)) {
         interface IDBConnection
         {
@@ -163,12 +181,14 @@ namespace OCP\DB {
         {
             public function hasTable(string $name): bool;
             public function createTable(string $name): ITable;
+            public function getTable(string $name): ITable;
         }
     }
 
     if (!interface_exists(ITable::class)) {
         interface ITable
         {
+            public function hasColumn(string $columnName): bool;
             public function addColumn(string $name, string $type, array $options = []): void;
             public function setPrimaryKey(array $columnNames, ?string $indexName = null): void;
             public function addUniqueIndex(array $columnNames, ?string $indexName = null): void;
