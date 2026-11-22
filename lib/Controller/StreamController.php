@@ -211,8 +211,14 @@ class StreamController extends Controller
 
             $stream = $file->fopen('r');
             if (is_resource($stream)) {
-                $info = $this->ffmpegService->probeStreamHeader($stream);
-                return new DataResponse($info);
+                try {
+                    $info = $this->ffmpegService->probeStreamHeader($stream);
+                    if (($info['duration'] ?? 0.0) > 0.0 || $info['videoCodec'] !== null || $info['audioCodec'] !== null) {
+                        return new DataResponse($info);
+                    }
+                } catch (RuntimeException) {
+                    // Fall back to probeLocalFile below
+                }
             }
 
             $info = $this->ffmpegService->probeLocalFile($file->getInternalPath());
