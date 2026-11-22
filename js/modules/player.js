@@ -296,6 +296,7 @@ export class VideoPlayerController {
 
     this.cancelAutoplayCountdown();
     this.cancelPendingSeek();
+    this.pendingDirectResume = false;
     this.setLoadingSpinner(true);
     this.applySubtitleScale(state.prefs?.subtitleScale ?? 1.0);
     const video = videos[index];
@@ -326,7 +327,7 @@ export class VideoPlayerController {
       requiresImmediateTranscode(video.name);
     state.isTranscodedStream = useTranscodeImmediately;
 
-    const savedProgress = getVideoProgress(state, video);
+    let savedProgress = getVideoProgress(state, video);
     if (savedProgress && Number(savedProgress.duration) > 0) {
       this.applyTotalDuration(Number(savedProgress.duration));
     }
@@ -356,6 +357,10 @@ export class VideoPlayerController {
     const streamMode = useTranscodeImmediately ? "transcode" : "direct";
     const sessionResp = await this.sessionManager.startSession(video, streamMode);
     const sessionToken = sessionResp.sessionToken;
+    savedProgress = sessionResp?.progress || getVideoProgress(state, video) || savedProgress;
+    if (savedProgress && Number(savedProgress.duration) > 0) {
+      this.applyTotalDuration(Number(savedProgress.duration));
+    }
 
     let initialStartOffset = 0;
     if (
@@ -366,6 +371,12 @@ export class VideoPlayerController {
       if (useTranscodeImmediately) {
         initialStartOffset = Math.floor(savedProgress.currentTime);
         state.transcodeBaseOffset = initialStartOffset;
+      }
+      if (dom.currentTimeLabel) {
+        dom.currentTimeLabel.textContent = formatDuration(savedProgress.currentTime);
+      }
+      if (dom.seekSlider) {
+        dom.seekSlider.value = String(Math.floor(savedProgress.currentTime));
       }
       if (dom.resumeBanner && dom.resumeBannerText) {
         dom.resumeBannerText.textContent = t(
@@ -394,18 +405,39 @@ export class VideoPlayerController {
 
     this.populateSubtitleTracks(video, initialStartOffset);
 
+    const directResumeTime =
+      savedProgress &&
+      !savedProgress.completed &&
+      savedProgress.currentTime > 3 &&
+      !useTranscodeImmediately
+        ? Number(savedProgress.currentTime)
+        : 0;
+
+    if (directResumeTime > 0) {
+      this.pendingDirectResume = true;
+      dom.videoElement.addEventListener(
+        "loadedmetadata",
+        () => {
+          if (
+            this.pendingDirectResume &&
+            state.currentVideo === video &&
+            !state.isTranscodedStream
+          ) {
+            this.pendingDirectResume = false;
+            dom.videoElement.currentTime = directResumeTime;
+          }
+        },
+        { once: true }
+      );
+    }
+
     dom.videoElement.src = streamUrl;
     dom.videoElement.playbackRate = state.prefs.playbackRate || 1.0;
     dom.videoElement.volume = state.prefs.volume ?? 1.0;
     dom.videoElement.muted = Boolean(state.prefs.muted);
 
-    if (
-      savedProgress &&
-      !savedProgress.completed &&
-      savedProgress.currentTime > 3 &&
-      !useTranscodeImmediately
-    ) {
-      dom.videoElement.currentTime = savedProgress.currentTime;
+    if (directResumeTime > 0) {
+      dom.videoElement.currentTime = directResumeTime;
     }
 
     this.sessionManager.startHeartbeatLoop(() => ({
@@ -738,6 +770,7 @@ export class VideoPlayerController {
     if (!this.dom.videoElement) {
       return;
     }
+    this.pendingDirectResume = false;
     const maxDur = this.state.totalDuration;
     let clamped = Math.max(0, Number(targetSeconds) || 0);
     if (Number.isFinite(maxDur) && maxDur > 0) {
@@ -943,6 +976,7 @@ export class VideoPlayerController {
   async closePlayer() {
     this.cancelAutoplayCountdown();
     this.cancelPendingSeek();
+    this.pendingDirectResume = false;
     this.setLoadingSpinner(false);
     const { dom, state } = this;
     const cur = Number(dom.videoElement?.currentTime) || 0;

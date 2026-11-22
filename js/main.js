@@ -1262,6 +1262,7 @@ class VideoPlayerController {
 
     this.cancelAutoplayCountdown();
     this.cancelPendingSeek();
+    this.pendingDirectResume = false;
     this.setLoadingSpinner(true);
     this.applySubtitleScale(state.prefs?.subtitleScale ?? 1.0);
     const video = videos[index];
@@ -1292,7 +1293,7 @@ class VideoPlayerController {
       requiresImmediateTranscode(video.name);
     state.isTranscodedStream = useTranscodeImmediately;
 
-    const savedProgress = getVideoProgress(state, video);
+    let savedProgress = getVideoProgress(state, video);
     if (savedProgress && Number(savedProgress.duration) > 0) {
       this.applyTotalDuration(Number(savedProgress.duration));
     }
@@ -1322,6 +1323,10 @@ class VideoPlayerController {
     const streamMode = useTranscodeImmediately ? "transcode" : "direct";
     const sessionResp = await this.sessionManager.startSession(video, streamMode);
     const sessionToken = sessionResp.sessionToken;
+    savedProgress = sessionResp?.progress || getVideoProgress(state, video) || savedProgress;
+    if (savedProgress && Number(savedProgress.duration) > 0) {
+      this.applyTotalDuration(Number(savedProgress.duration));
+    }
 
     let initialStartOffset = 0;
     if (
@@ -1332,6 +1337,12 @@ class VideoPlayerController {
       if (useTranscodeImmediately) {
         initialStartOffset = Math.floor(savedProgress.currentTime);
         state.transcodeBaseOffset = initialStartOffset;
+      }
+      if (dom.currentTimeLabel) {
+        dom.currentTimeLabel.textContent = formatDuration(savedProgress.currentTime);
+      }
+      if (dom.seekSlider) {
+        dom.seekSlider.value = String(Math.floor(savedProgress.currentTime));
       }
       if (dom.resumeBanner && dom.resumeBannerText) {
         dom.resumeBannerText.textContent = t(
@@ -1360,18 +1371,39 @@ class VideoPlayerController {
 
     this.populateSubtitleTracks(video, initialStartOffset);
 
+    const directResumeTime =
+      savedProgress &&
+      !savedProgress.completed &&
+      savedProgress.currentTime > 3 &&
+      !useTranscodeImmediately
+        ? Number(savedProgress.currentTime)
+        : 0;
+
+    if (directResumeTime > 0) {
+      this.pendingDirectResume = true;
+      dom.videoElement.addEventListener(
+        "loadedmetadata",
+        () => {
+          if (
+            this.pendingDirectResume &&
+            state.currentVideo === video &&
+            !state.isTranscodedStream
+          ) {
+            this.pendingDirectResume = false;
+            dom.videoElement.currentTime = directResumeTime;
+          }
+        },
+        { once: true }
+      );
+    }
+
     dom.videoElement.src = streamUrl;
     dom.videoElement.playbackRate = state.prefs.playbackRate || 1.0;
     dom.videoElement.volume = state.prefs.volume ?? 1.0;
     dom.videoElement.muted = Boolean(state.prefs.muted);
 
-    if (
-      savedProgress &&
-      !savedProgress.completed &&
-      savedProgress.currentTime > 3 &&
-      !useTranscodeImmediately
-    ) {
-      dom.videoElement.currentTime = savedProgress.currentTime;
+    if (directResumeTime > 0) {
+      dom.videoElement.currentTime = directResumeTime;
     }
 
     this.sessionManager.startHeartbeatLoop(() => ({
@@ -1704,6 +1736,7 @@ class VideoPlayerController {
     if (!this.dom.videoElement) {
       return;
     }
+    this.pendingDirectResume = false;
     const maxDur = this.state.totalDuration;
     let clamped = Math.max(0, Number(targetSeconds) || 0);
     if (Number.isFinite(maxDur) && maxDur > 0) {
@@ -1718,6 +1751,13 @@ class VideoPlayerController {
     }
 
     if (this.state.isTranscodedStream && this.state.currentVideo) {
+      const localTarget = clamped - (this.state.transcodeBaseOffset || 0);
+      if (this.isBufferedLocalTime(localTarget)) {
+        this.cancelPendingSeek();
+        this.setLoadingSpinner(false);
+        this.dom.videoElement.currentTime = localTarget;
+        return;
+      }
       this.pendingSeekTarget = clamped;
       this.setLoadingSpinner(true);
       if (this.seekDebounceTimer) {
@@ -1733,6 +1773,25 @@ class VideoPlayerController {
       return;
     }
     this.dom.videoElement.currentTime = clamped;
+  }
+
+  isBufferedLocalTime(localSeconds) {
+    const video = this.dom.videoElement;
+    if (!video || !Number.isFinite(localSeconds) || localSeconds < 0) {
+      return false;
+    }
+    const buffered = video.buffered;
+    if (!buffered || typeof buffered.length !== "number") {
+      return false;
+    }
+    for (let i = 0; i < buffered.length; i++) {
+      const start = buffered.start(i);
+      const end = buffered.end(i);
+      if (localSeconds >= start && localSeconds <= Math.max(start, end - 0.5)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   toggleMute() {
@@ -1883,6 +1942,7 @@ class VideoPlayerController {
   async closePlayer() {
     this.cancelAutoplayCountdown();
     this.cancelPendingSeek();
+    this.pendingDirectResume = false;
     this.setLoadingSpinner(false);
     const { dom, state } = this;
     const cur = Number(dom.videoElement?.currentTime) || 0;
@@ -2059,10 +2119,24 @@ async function bootApp() {
       state.currentPath = lw.folderPath || "/";
       state.isSearching = false;
       await loadCurrentFolder();
+      const targetRel = String(lw.relativePath || "").replace(/^\/+/, "");
       const idx = (state.videos || []).findIndex(
-        (v) => v.relativePath === lw.relativePath
+        (v) => String(v.relativePath || "").replace(/^\/+/, "") === targetRel
       );
       if (idx >= 0) {
+        const targetVideo = state.videos[idx];
+        if (!targetVideo.progress && lw.currentTime > 3) {
+          const fallbackProgress = {
+            rootId: lw.rootId,
+            relativePath: targetVideo.relativePath,
+            currentTime: Number(lw.currentTime) || 0,
+            duration: Number(lw.duration) || 0,
+            progressRatio: Number(lw.progressRatio) || 0,
+            completed: false,
+          };
+          targetVideo.progress = fallbackProgress;
+          state.progressByVideoId.set(targetVideo.id, fallbackProgress);
+        }
         player.openVideoByIndex(idx).catch((err) => showAlert(err.message));
       }
     });
