@@ -7,15 +7,15 @@ Entrega streaming progressivo via HTTP Range, transcodificação opcional em mem
 ## ADDED Requirements
 
 ### Requirement: Authenticated HTTP Range video streaming
-The system SHALL stream video files belonging to configured accessible folders to authenticated Nextcloud users with full HTTP `Range` (`206 Partial Content`) support so playback starts promptly and seeking jumps to any timestamp without downloading the entire file first.
+The system SHALL stream video files belonging to configured accessible folders to authenticated Nextcloud users with an authorized playback session, providing full HTTP `Range` (`206 Partial Content`) support without holding the PHP session lock during transfer.
 
 #### Scenario: Seeking inside a browser-compatible MP4 video
-- **GIVEN** o usuário autenticado inicia a reprodução de um arquivo `.mp4` dentro de uma pasta configurada
+- **GIVEN** o usuário autenticado iniciou uma sessão de reprodução para um arquivo `.mp4` dentro de uma pasta configurada
 - **WHEN** o player envia uma requisição com cabeçalho `Range: bytes=1048576-2097151` ao saltar na barra de progresso
-- **THEN** o servidor responde com status `206 Partial Content`, cabeçalhos `Content-Range`, `Accept-Ranges: bytes` e `Content-Length` exatos, entregando apenas o intervalo solicitado
+- **THEN** o servidor valida a sessão, libera o lock da sessão PHP e responde com status `206 Partial Content`, cabeçalhos `Content-Range`, `Accept-Ranges: bytes` e `Content-Length` exatos, entregando apenas o intervalo solicitado
 
-#### Scenario: Unauthenticated or unauthorized streaming attempt
-- **GIVEN** uma requisição tenta acessar o endpoint de streaming sem sessão autenticada válida no Nextcloud ou apontando para um arquivo fora das pastas configuradas
+#### Scenario: Unauthenticated, unauthorized, or revoked session streaming attempt
+- **GIVEN** uma requisição tenta acessar o endpoint de streaming sem sessão autenticada válida no Nextcloud, com sessão de reprodução revogada/expirada ou apontando para um arquivo fora das pastas configuradas
 - **WHEN** o servidor processa a requisição
 - **THEN** o acesso é recusado (`401 Unauthorized` ou `403 Forbidden`) e nenhum byte do arquivo é transmitido
 
@@ -43,7 +43,7 @@ The system SHALL provide a responsive HTML5 video player integrated with Nextclo
 #### Scenario: Adjusting playback speed and keyboard shortcuts
 - **GIVEN** um vídeo está aberto no player
 - **WHEN** o usuário altera a velocidade para `1.5x` e pressiona `Espaço` (ou `K`), `←`/`→`, `M` e `F`
-- **THEN** a velocidade de áudio e vídeo é aplicada e persistida nas preferências, e os atalhos controlam respectivamente reproduzir/pausar, retroceder/avançar 10s, silenciar e alternar tela cheia
+- **THEN** a velocidade de áudio e vídeo é aplicada e persistida na tabela de preferências do usuário, e os atalhos controlam respectivamente reproduzir/pausar, retroceder/avançar 10s, silenciar e alternar tela cheia
 
 ### Requirement: Local subtitles and audio track selection
 The system SHALL detect compatible local subtitle files (`.vtt` and `.srt`) stored in the same folder with matching base filename, convert `.srt` to WebVTT in memory without modifying files, and expose both subtitle selection and browser-supported audio track selection in the player controls.
@@ -58,18 +58,18 @@ The system SHALL detect compatible local subtitle files (`.vtt` and `.srt`) stor
 - **WHEN** o vídeo é carregado no player
 - **THEN** o controle de faixas de áudio exibe o estado padrão sem quebrar a reprodução
 
-### Requirement: Playback progress resume and autoplay next video
-The system SHALL persist per-user/device playback progress outside the media folders, indicate partial progress in the catalog, resume playback from the last position with a restart option, reset progress once a video exceeds 95% completion, and offer manual and automatic next-video transition with a cancellable countdown.
+### Requirement: Server-persisted playback progress resume and autoplay next video
+The system SHALL persist per-user playback progress in the application's database table via playback session heartbeats outside the media folders, indicate partial progress in the catalog, resume playback across devices with a restart option, reset progress once a video exceeds 95% completion, and offer manual and automatic next-video transition with a cancellable countdown.
 
-#### Scenario: Resuming a partially watched video
+#### Scenario: Resuming a partially watched video across devices
 - **GIVEN** o usuário assistiu 15 minutos de um vídeo de 40 minutos e fechou o player
-- **WHEN** o usuário retorna ao catálogo e abre novamente o mesmo vídeo
-- **THEN** o cartão do catálogo exibe barra de progresso parcial e o player retoma a reprodução a partir do ponto salvo exibindo um aviso discreto com botão para reiniciar do início
+- **WHEN** o usuário retorna ao catálogo (no mesmo dispositivo ou em outro autenticado na mesma conta Nextcloud) e abre novamente o mesmo vídeo
+- **THEN** o cartão do catálogo exibe barra de progresso parcial e o player retoma a reprodução a partir do ponto salvo na tabela do servidor exibindo um aviso discreto com botão para reiniciar do início
 
 #### Scenario: Autoplay next video with cancellable countdown
 - **GIVEN** a opção "Próximo vídeo automático" está ativada e existe um vídeo seguinte na mesma pasta
 - **WHEN** o vídeo atual termina
-- **THEN** o progresso do vídeo concluído é redefinido, o player exibe uma contagem regressiva de 5 segundos com ações "Reproduzir Agora" e "Cancelar" e inicia o próximo vídeo automaticamente se não cancelado
+- **THEN** o progresso do vídeo concluído é marcado como finalizado na tabela do servidor, a sessão atual é encerrada, o player exibe uma contagem regressiva de 5 segundos com ações "Reproduzir Agora" e "Cancelar" e inicia o próximo vídeo automaticamente se não cancelado
 
 ### Requirement: Strict offline operation and Nextcloud CSP compliance
 The system MUST serve all scripts, styles, icons, and templates exclusively from the local Nextcloud app bundle without external CDN requests or telemetry, complying with Nextcloud Content Security Policy (`default-src 'self'`).
