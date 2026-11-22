@@ -20,6 +20,8 @@ use OCP\AppFramework\Http\ICallbackResponse;
 use OCP\AppFramework\Http\IOutput;
 use OCP\Files\File;
 use OCP\Files\Folder;
+use OCP\ICache;
+use OCP\ICacheFactory;
 use OCP\IL10N;
 use OCP\IPreview;
 use OCP\IRequest;
@@ -155,5 +157,83 @@ class StreamAndPageControllerTest extends TestCase
         $this->assertNotNull($csp);
         $this->assertContains("'self'", $csp->getAllowedMediaDomains());
         $this->assertContains('blob:', $csp->getAllowedMediaDomains());
+    }
+
+    public function testProbeUsesDistributedCacheHitWithoutRunningFfprobe(): void
+    {
+        $request = $this->createMock(IRequest::class);
+        $request->method('getParam')->willReturnCallback(static fn (string $k, mixed $d = null): mixed => match ($k) {
+            'path' => '/Wave.avi',
+            default => $d,
+        });
+
+        $roots = [['id' => 'rk1', 'path' => '/Movies', 'label' => 'Movies', 'scope' => 'global']];
+        $folderService = $this->createMock(FolderConfigService::class);
+        $folderService->method('getEffectiveRoots')->willReturn($roots);
+
+        $file = $this->createMock(File::class);
+        $file->method('getName')->willReturn('Wave.avi');
+        $file->method('getSize')->willReturn(732882944);
+        $file->method('getMTime')->willReturn(1222256714);
+
+        $folderNode = $this->createMock(Folder::class);
+        $resolver = $this->createMock(SafeNodeResolver::class);
+        $resolver->method('resolveFileInRoot')->willReturn([
+            'root' => $roots[0],
+            'rootFolder' => $folderNode,
+            'file' => $file,
+            'relativePath' => '/Wave.avi',
+        ]);
+
+        $catalogService = new VideoCatalogService(
+            $folderService,
+            $resolver,
+            new SubtitleService(),
+            $this->createMock(ProgressService::class)
+        );
+
+        $ffmpegService = $this->createMock(FfmpegService::class);
+        $ffmpegService->method('isTranscodingEnabled')->willReturn(true);
+        $ffmpegService->expects($this->never())->method('probeStreamHeader');
+        $ffmpegService->expects($this->never())->method('probeLocalFile');
+
+        $cache = $this->createMock(ICache::class);
+        $cache->method('get')->willReturn([
+            'duration' => 6144.84,
+            'videoCodec' => 'mpeg4',
+            'audioCodec' => 'mp3',
+            'canTranscode' => true,
+        ]);
+        $cacheFactory = $this->createMock(ICacheFactory::class);
+        $cacheFactory->method('createDistributed')->willReturn($cache);
+
+        $user = $this->createMock(IUser::class);
+        $user->method('getUID')->willReturn('alice');
+        $userSession = $this->createMock(IUserSession::class);
+        $userSession->method('isLoggedIn')->willReturn(true);
+        $userSession->method('getUser')->willReturn($user);
+
+        $l10n = $this->createMock(IL10N::class);
+        $l10n->method('t')->willReturnArgument(0);
+
+        $controller = new StreamController(
+            'folder_video_player',
+            $request,
+            $folderService,
+            $resolver,
+            $catalogService,
+            new MediaStreamService(),
+            $ffmpegService,
+            $this->createMock(PlaybackSessionService::class),
+            $userSession,
+            $this->createMock(ISession::class),
+            $this->createMock(IPreview::class),
+            $l10n,
+            $cacheFactory
+        );
+
+        $resp = $controller->probe('rk1');
+        $this->assertSame(Http::STATUS_OK, $resp->getStatus());
+        $this->assertSame(6144.84, $resp->getData()['duration']);
     }
 }

@@ -21,6 +21,7 @@ use OCP\AppFramework\Http\IOutput;
 use OCP\AppFramework\Http\Response;
 use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
+use OCP\ICacheFactory;
 use OCP\IL10N;
 use OCP\IPreview;
 use OCP\IRequest;
@@ -44,7 +45,8 @@ class StreamController extends Controller
         private IUserSession $userSession,
         private ISession $phpSession,
         private IPreview $previewManager,
-        private IL10N $l10n
+        private IL10N $l10n,
+        private ?ICacheFactory $cacheFactory = null
     ) {
         parent::__construct($appName, $request);
     }
@@ -209,11 +211,21 @@ class StreamController extends Controller
 
             $this->phpSession->close();
 
+            $cache = $this->cacheFactory?->createDistributed('folder_video_player_probe');
+            $cacheKey = sprintf('probe_%s_%s_%d_%d', $rootId, hash('sha256', $resolved['relativePath']), $file->getSize(), $file->getMTime());
+            if ($cache !== null) {
+                $cached = $cache->get($cacheKey);
+                if (is_array($cached) && isset($cached['duration'])) {
+                    return new DataResponse($cached);
+                }
+            }
+
             $stream = $file->fopen('r');
             if (is_resource($stream)) {
                 try {
                     $info = $this->ffmpegService->probeStreamHeader($stream);
                     if (($info['duration'] ?? 0.0) > 0.0 || $info['videoCodec'] !== null || $info['audioCodec'] !== null) {
+                        $cache?->set($cacheKey, $info, 86400);
                         return new DataResponse($info);
                     }
                 } catch (RuntimeException) {
@@ -222,6 +234,7 @@ class StreamController extends Controller
             }
 
             $info = $this->ffmpegService->probeLocalFile($file->getInternalPath());
+            $cache?->set($cacheKey, $info, 86400);
             return new DataResponse($info);
         } catch (InvalidArgumentException $e) {
             return $this->errorResponse($this->l10n->t($e->getMessage()), Http::STATUS_BAD_REQUEST);

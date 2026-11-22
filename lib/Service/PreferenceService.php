@@ -11,6 +11,8 @@ class PreferenceService
 {
     private const ALLOWED_RATES = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
     private const ALLOWED_SORTS = ['name_asc', 'name_desc', 'date_desc', 'date_asc'];
+    public const MIN_SUBTITLE_SCALE = 0.75;
+    public const MAX_SUBTITLE_SCALE = 2.0;
 
     public function __construct(
         private UserPreferenceMapper $preferenceMapper
@@ -18,7 +20,7 @@ class PreferenceService
     }
 
     /**
-     * @return array{playbackRate: float, autoPlayNext: bool, sortBy: string, volume: float, muted: bool, preferredSubtitle: ?string, updatedAt: int}
+     * @return array{playbackRate: float, autoPlayNext: bool, sortBy: string, volume: float, muted: bool, preferredSubtitle: ?string, lastRootId: ?string, lastFolderPath: ?string, subtitleScale: float, updatedAt: int}
      */
     public function getPreferences(string $userId): array
     {
@@ -31,6 +33,9 @@ class PreferenceService
                 'volume' => 1.0,
                 'muted' => false,
                 'preferredSubtitle' => null,
+                'lastRootId' => null,
+                'lastFolderPath' => null,
+                'subtitleScale' => 1.0,
                 'updatedAt' => 0,
             ];
         }
@@ -40,7 +45,7 @@ class PreferenceService
 
     /**
      * @param array<string, mixed> $input
-     * @return array{playbackRate: float, autoPlayNext: bool, sortBy: string, volume: float, muted: bool, preferredSubtitle: ?string, updatedAt: int}
+     * @return array{playbackRate: float, autoPlayNext: bool, sortBy: string, volume: float, muted: bool, preferredSubtitle: ?string, lastRootId: ?string, lastFolderPath: ?string, subtitleScale: float, updatedAt: int}
      */
     public function updatePreferences(string $userId, array $input): array
     {
@@ -55,6 +60,9 @@ class PreferenceService
             $entity->setVolume(1.0);
             $entity->setMuted(false);
             $entity->setPreferredSubtitle(null);
+            $entity->setLastRootId(null);
+            $entity->setLastFolderPath(null);
+            $entity->setSubtitleScale(1.0);
         }
 
         if (array_key_exists('playbackRate', $input)) {
@@ -89,6 +97,23 @@ class PreferenceService
             $entity->setPreferredSubtitle($sub === '' ? null : $sub);
         }
 
+        if (array_key_exists('lastRootId', $input)) {
+            $rootId = $input['lastRootId'] === null ? null : substr(trim((string) $input['lastRootId']), 0, 64);
+            if ($rootId === '' || ($rootId !== null && !preg_match('/^[a-zA-Z0-9_-]+$/', $rootId))) {
+                $rootId = null;
+            }
+            $entity->setLastRootId($rootId);
+        }
+
+        if (array_key_exists('lastFolderPath', $input)) {
+            $entity->setLastFolderPath($this->sanitizeLastFolderPath($input['lastFolderPath']));
+        }
+
+        if (array_key_exists('subtitleScale', $input) && is_numeric($input['subtitleScale'])) {
+            $scale = min(self::MAX_SUBTITLE_SCALE, max(self::MIN_SUBTITLE_SCALE, (float) $input['subtitleScale']));
+            $entity->setSubtitleScale(round($scale, 2));
+        }
+
         $entity->setUpdatedAt(time());
 
         if ($isNew) {
@@ -100,11 +125,40 @@ class PreferenceService
         return $this->entityToArray($entity);
     }
 
+    private function sanitizeLastFolderPath(mixed $rawPath): ?string
+    {
+        if ($rawPath === null) {
+            return null;
+        }
+        $str = trim((string) $rawPath);
+        if ($str === '' || str_contains($str, "\0") || str_contains($str, '\\')) {
+            return null;
+        }
+        $segments = explode('/', $str);
+        $clean = [];
+        foreach ($segments as $seg) {
+            if ($seg === '' || $seg === '.') {
+                continue;
+            }
+            if ($seg === '..' || str_starts_with($seg, '.')) {
+                return null;
+            }
+            $clean[] = $seg;
+        }
+        $normalized = $clean === [] ? '/' : '/' . implode('/', $clean);
+        return substr($normalized, 0, 1024);
+    }
+
     /**
-     * @return array{playbackRate: float, autoPlayNext: bool, sortBy: string, volume: float, muted: bool, preferredSubtitle: ?string, updatedAt: int}
+     * @return array{playbackRate: float, autoPlayNext: bool, sortBy: string, volume: float, muted: bool, preferredSubtitle: ?string, lastRootId: ?string, lastFolderPath: ?string, subtitleScale: float, updatedAt: int}
      */
     private function entityToArray(UserPreferenceEntity $entity): array
     {
+        $rawScale = $entity->getSubtitleScale();
+        $safeScale = $rawScale > 0.0
+            ? round(min(self::MAX_SUBTITLE_SCALE, max(self::MIN_SUBTITLE_SCALE, $rawScale)), 2)
+            : 1.0;
+
         return [
             'playbackRate' => $entity->getPlaybackRate(),
             'autoPlayNext' => $entity->getAutoplayNext(),
@@ -112,6 +166,9 @@ class PreferenceService
             'volume' => $entity->getVolume(),
             'muted' => $entity->getMuted(),
             'preferredSubtitle' => $entity->getPreferredSubtitle(),
+            'lastRootId' => $entity->getLastRootId(),
+            'lastFolderPath' => $entity->getLastFolderPath(),
+            'subtitleScale' => $safeScale,
             'updatedAt' => $entity->getUpdatedAt(),
         ];
     }

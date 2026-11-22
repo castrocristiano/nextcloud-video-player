@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OCA\FolderVideoPlayer\Tests\Unit\Migration;
 
 use OCA\FolderVideoPlayer\Migration\Version0001Date20261121000000;
+use OCA\FolderVideoPlayer\Migration\Version0002Date20261122000000;
 use OCP\DB\ISchemaWrapper;
 use OCP\DB\ITable;
 use OCP\Migration\IOutput;
@@ -72,5 +73,26 @@ class Version0001MigrationTest extends TestCase
         $output = $this->createMock(IOutput::class);
         $migration = new Version0001Date20261121000000();
         $migration->changeSchema($output, static fn (): ISchemaWrapper => $schema, []);
+    }
+
+    public function testVersion0002AddsLastFolderAndSubtitleScaleColumns(): void
+    {
+        $addedColumns = [];
+        $table = $this->createMock(ITable::class);
+        $table->method('hasColumn')->willReturn(false);
+        $table->method('addColumn')
+            ->willReturnCallback(static function (string $colName) use (&$addedColumns): void {
+                $addedColumns[] = $colName;
+            });
+
+        $schema = $this->createMock(ISchemaWrapper::class);
+        $schema->method('hasTable')->with('ncvp_user_preferences')->willReturn(true);
+        $schema->method('getTable')->with('ncvp_user_preferences')->willReturn($table);
+
+        $output = $this->createMock(IOutput::class);
+        $migration = new Version0002Date20261122000000();
+        $migration->changeSchema($output, static fn (): ISchemaWrapper => $schema, []);
+
+        $this->assertSame(['last_root_id', 'last_folder_path', 'subtitle_scale'], $addedColumns);
     }
 }

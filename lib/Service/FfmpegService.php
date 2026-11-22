@@ -206,8 +206,8 @@ class FfmpegService
             '-hide_banner',
             '-loglevel',
             'error',
-            '-i',
-            $inputPath,
+            '-fflags',
+            '+discardcorrupt',
         ];
 
         if ($safeStart > 0.0) {
@@ -217,6 +217,8 @@ class FfmpegService
 
         array_push(
             $cmd,
+            '-i',
+            $inputPath,
             '-c:v',
             'libx264',
             '-preset',
