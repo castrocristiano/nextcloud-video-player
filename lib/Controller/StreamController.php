@@ -88,14 +88,16 @@ class StreamController extends Controller
                     return $this->errorResponse($this->l10n->t('Unable to open video file stream'), Http::STATUS_INTERNAL_SERVER_ERROR);
                 }
                 $ffmpegService = $this->ffmpegService;
-                return new class($stream, $startSeconds, $ffmpegService) extends Response implements ICallbackResponse {
+                $fileSize = (int) $file->getSize();
+                return new class($stream, $startSeconds, $ffmpegService, $fileSize) extends Response implements ICallbackResponse {
                     /**
                      * @param resource $stream
                      */
                     public function __construct(
                         private $stream,
                         private float $startSeconds,
-                        private FfmpegService $ffmpegService
+                        private FfmpegService $ffmpegService,
+                        private int $fileSize
                     ) {
                         $this->setStatus(Http::STATUS_OK);
                         $this->addHeader('Content-Type', 'video/mp4');
@@ -114,7 +116,8 @@ class StreamController extends Controller
                                     @ob_flush();
                                 }
                                 @flush();
-                            }
+                            },
+                            $this->fileSize
                         );
                     }
                 };

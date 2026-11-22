@@ -87,4 +87,58 @@ class PlaybackSessionMapper extends QBMapper
 
         return $qb->executeStatement();
     }
+
+    public function findLatestForUser(string $userId): ?PlaybackSessionEntity
+    {
+        $qb = $this->db->getQueryBuilder();
+        $qb->select('*')
+            ->from($this->getTableName())
+            ->where($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)))
+            ->orderBy('id', 'DESC')
+            ->setMaxResults(1);
+
+        try {
+            return $this->findEntity($qb);
+        } catch (DoesNotExistException) {
+            return null;
+        }
+    }
+
+    public function findLatestEndedForUser(string $userId): ?PlaybackSessionEntity
+    {
+        $qb = $this->db->getQueryBuilder();
+        $qb->select('*')
+            ->from($this->getTableName())
+            ->where($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)))
+            ->andWhere($qb->expr()->in('status', $qb->createNamedParameter(['ended', 'expired', 'revoked'], IQueryBuilder::PARAM_STR_ARRAY)))
+            ->orderBy('id', 'DESC')
+            ->setMaxResults(1);
+
+        try {
+            return $this->findEntity($qb);
+        } catch (DoesNotExistException) {
+            return null;
+        }
+    }
+
+    public function deleteOtherSessionsForUser(string $userId, int $keepId): int
+    {
+        $qb = $this->db->getQueryBuilder();
+        $qb->delete($this->getTableName())
+            ->where($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)))
+            ->andWhere($qb->expr()->neq('id', $qb->createNamedParameter($keepId, IQueryBuilder::PARAM_INT)));
+
+        return $qb->executeStatement();
+    }
+
+    public function deleteEndedForUserExcept(string $userId, int $keepId): int
+    {
+        $qb = $this->db->getQueryBuilder();
+        $qb->delete($this->getTableName())
+            ->where($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)))
+            ->andWhere($qb->expr()->in('status', $qb->createNamedParameter(['ended', 'expired', 'revoked'], IQueryBuilder::PARAM_STR_ARRAY)))
+            ->andWhere($qb->expr()->neq('id', $qb->createNamedParameter($keepId, IQueryBuilder::PARAM_INT)));
+
+        return $qb->executeStatement();
+    }
 }

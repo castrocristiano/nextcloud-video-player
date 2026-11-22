@@ -752,6 +752,13 @@ export class VideoPlayerController {
     }
 
     if (this.state.isTranscodedStream && this.state.currentVideo) {
+      const localTarget = clamped - (this.state.transcodeBaseOffset || 0);
+      if (this.isBufferedLocalTime(localTarget)) {
+        this.cancelPendingSeek();
+        this.setLoadingSpinner(false);
+        this.dom.videoElement.currentTime = localTarget;
+        return;
+      }
       this.pendingSeekTarget = clamped;
       this.setLoadingSpinner(true);
       if (this.seekDebounceTimer) {
@@ -767,6 +774,25 @@ export class VideoPlayerController {
       return;
     }
     this.dom.videoElement.currentTime = clamped;
+  }
+
+  isBufferedLocalTime(localSeconds) {
+    const video = this.dom.videoElement;
+    if (!video || !Number.isFinite(localSeconds) || localSeconds < 0) {
+      return false;
+    }
+    const buffered = video.buffered;
+    if (!buffered || typeof buffered.length !== "number") {
+      return false;
+    }
+    for (let i = 0; i < buffered.length; i++) {
+      const start = buffered.start(i);
+      const end = buffered.end(i);
+      if (localSeconds >= start && localSeconds <= Math.max(start, end - 0.5)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   toggleMute() {
