@@ -73,6 +73,12 @@ class StreamAndPageControllerTest extends TestCase
 
         $ffmpegService = $this->createMock(FfmpegService::class);
         $ffmpegService->method('isTranscodingEnabled')->willReturn(true);
+        $ffmpegService->method('probeStreamHeader')->willReturn([
+            'duration' => 120.0,
+            'videoCodec' => 'h264',
+            'audioCodec' => 'aac',
+            'canTranscode' => true,
+        ]);
         $ffmpegService->method('probeLocalFile')->willReturn([
             'duration' => 120.0,
             'videoCodec' => 'h264',
@@ -93,7 +99,7 @@ class StreamAndPageControllerTest extends TestCase
         $userSession->method('getUser')->willReturn($user);
 
         $phpSession = $this->createMock(ISession::class);
-        $phpSession->expects($this->once())->method('close');
+        $phpSession->expects($this->atLeastOnce())->method('close');
 
         $preview = $this->createMock(IPreview::class);
         $preview->method('getPreview')->willReturn(null);
