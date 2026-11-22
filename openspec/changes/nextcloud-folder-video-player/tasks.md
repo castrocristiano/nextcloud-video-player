@@ -49,7 +49,7 @@
 - [x] 7.1 Atualizar `.github/workflows/ci.yml` adicionando validação XSD de `appinfo/info.xml` (`xmllint --schema`), empacotamento limpo somente-runtime, assinatura de integridade (`appinfo/signature.json` + SHA-512 do `.tar.gz` via `NC_APP_PRIVATE_KEY` e `NC_APP_CERTIFICATE`) e etapa condicional de publicação na API da Nextcloud App Store (`NC_APPSTORE_TOKEN`)
 - [x] 7.2 Gerar e adicionar capturas de tela em `screenshots/` (temas claro e escuro) referenciadas em `appinfo/info.xml` e documentar o processo completo de registro do CSR, geração de certificado e configuração dos GitHub Secrets em `README.md` e `wiki/`
 - [x] 7.3 Executar suíte completa local (`openspec validate --all --strict --no-interactive`, `xmllint --schema`, `php -l`, `phpstan`, `phpunit` com Clover, `eslint`, `vitest` com LCOV) e confirmar 0 erros
-- [ ] 7.4 Validar Quality Gate do SonarQube via `./sonar_check.sh` (usando `SONAR_HOST_URL` e `SONAR_TOKEN` via variáveis de ambiente) e verificar execução completa da esteira `.github/workflows/ci.yml`
+- [x] 7.4 Validar Quality Gate do SonarQube via `./sonar_check.sh` (usando `SONAR_HOST_URL` e `SONAR_TOKEN` via variáveis de ambiente) e verificar execução completa da esteira `.github/workflows/ci.yml`
 
 ## Workflow follow-up
 
