@@ -37,7 +37,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: dom, xml, mbstring, zip, curl, fileinfo
+          extensions: dom, xml, mbstring, zip, curl, fileinfo, intl, pdo_sqlite
           coverage: xdebug
           tools: composer:v2
 
@@ -46,34 +46,40 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Validate Nextcloud appinfo/info.xml
+      - name: Validate Nextcloud appinfo/info.xml against official App Store XSD
         if: hashFiles('appinfo/info.xml') != ''
         run: |
-          xmllint --noout appinfo/info.xml
-          echo "✅ appinfo/info.xml é XML bem-formado."
+          curl -fsSL -o /tmp/info.xsd https://apps.nextcloud.com/schema/apps/info.xsd
+          php -r '
+            libxml_use_internal_errors(true);
+            $dom = new DOMDocument();
+            if (!$dom->load("appinfo/info.xml")) {
+              foreach (libxml_get_errors() as $err) { fwrite(STDERR, $err->message); }
+              exit(1);
+            }
+            if (is_file("/tmp/info.xsd") && !$dom->schemaValidate("/tmp/info.xsd")) {
+              foreach (libxml_get_errors() as $err) { fwrite(STDERR, $err->message); }
+              exit(1);
+            }
+            echo "✅ appinfo/info.xml validado contra o XSD oficial da Nextcloud App Store.\n";
+          '
 
       - name: PHP Syntax Lint
         run: |
           PHP_FILES=$(find appinfo lib tests -type f -name '*.php' 2>/dev/null || true)
           if [ -n "$PHP_FILES" ]; then
             echo "$PHP_FILES" | xargs -n1 php -l
-          else
-            echo "ℹ️ Nenhum arquivo PHP encontrado ainda — etapa de lint PHP pulada."
           fi
 
-      - name: Install Composer dependencies & run PHP Static Analysis + Tests
+      - name: Install Composer dependencies & run PHPStan + PHPUnit
         if: hashFiles('composer.json') != ''
         run: |
           composer install --no-interaction --prefer-dist
-          if [ -x vendor/bin/phpstan ]; then
-            vendor/bin/phpstan analyse --no-progress
-          fi
+          vendor/bin/phpstan analyse --no-progress
           mkdir -p build/logs
-          if [ -x vendor/bin/phpunit ]; then
-            XDEBUG_MODE=coverage vendor/bin/phpunit --coverage-clover build/logs/clover.xml
-          fi
+          XDEBUG_MODE=coverage vendor/bin/phpunit --coverage-clover build/logs/clover.xml
 
-      - name: Install npm dependencies & run JS Lint + Tests
+      - name: Install npm dependencies & run ESLint + Vitest
         if: hashFiles('package.json') != ''
         run: |
           if [ -f package-lock.json ]; then
@@ -130,8 +136,19 @@ jobs:
           SONAR_HOST_URL: "http://localhost:9000"
         run: |
           if [ -z "${SONAR_TOKEN:-}" ]; then
-            echo "Gerando token temporário no SonarQube local do CI..."
-            SONAR_TOKEN=$(curl -s -u admin:admin -X POST "http://localhost:9000/api/user_tokens/generate" -d "name=ci-token-${GITHUB_RUN_ID}" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+            echo "Configurando autenticação efêmera no SonarQube local do CI (padrão contas)..."
+            curl -s -u admin:admin -X POST "http://localhost:9000/api/users/change_password?login=admin&previousPassword=admin&password=admin1234" || true
+            SONAR_TOKEN=$(curl -s -u admin:admin1234 -X POST "http://localhost:9000/api/user_tokens/generate?name=ci-token-${GITHUB_RUN_ID}" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+            if [ -z "${SONAR_TOKEN:-}" ]; then
+              SONAR_TOKEN=$(curl -s -u admin:admin -X POST "http://localhost:9000/api/user_tokens/generate?name=ci-token-${GITHUB_RUN_ID}" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+            fi
+          fi
+
+          curl -s -u "${SONAR_TOKEN}:" -X POST "http://localhost:9000/api/projects/create" \
+            -d "project=nextcloud-video-player&name=nextcloud-video-player" >/dev/null 2>&1 || true
+
+          if [ -f build/logs/clover.xml ]; then
+            sed -i "s|${GITHUB_WORKSPACE}|/usr/src|g" build/logs/clover.xml
           fi
 
           docker run --rm \
@@ -179,7 +196,7 @@ jobs:
               --base "$TARGET_BASE" \
               --head "$BRANCH" \
               --title "feat: $BRANCH" \
-              --body $'### Pull Request Automatizado\n\nEste PR foi aberto automaticamente pela esteira de CI após a conclusão bem-sucedida das validações OpenSpec, lint, testes unitários e SonarQube no branch `'"$BRANCH"$'`.\n\n#### Verificações Realizadas\n- [x] Validação estrita do OpenSpec (`openspec validate --all --strict`)\n- [x] Lint e análise estática (PHP / ESLint)\n- [x] Execução de testes unitários com cobertura (PHPUnit / Vitest)\n- [x] Quality Gate do SonarQube aprovado'; then
+              --body $'### Pull Request Automatizado\n\nEste PR foi aberto automaticamente pela esteira de CI após a conclusão bem-sucedida das validações OpenSpec, XSD da App Store, lint, testes unitários e SonarQube no branch `'"$BRANCH"$'`.\n\n#### Verificações Realizadas\n- [x] Validação estrita do OpenSpec (`openspec validate --all --strict`)\n- [x] Validação XSD de `appinfo/info.xml` contra o schema oficial da Nextcloud App Store\n- [x] Lint e análise estática (PHPStan / ESLint)\n- [x] Execução de testes unitários com cobertura (PHPUnit / Vitest)\n- [x] Quality Gate do SonarQube aprovado'; then
               echo "::warning::Não foi possível criar o PR automaticamente via GITHUB_TOKEN. Ative 'Allow GitHub Actions to create and approve pull requests' em https://github.com/${GITHUB_REPOSITORY}/settings/actions ou abra manualmente em https://github.com/${GITHUB_REPOSITORY}/compare/${TARGET_BASE}...${BRANCH}?expand=1"
             fi
           fi
@@ -227,9 +244,9 @@ jobs:
             fi
           fi
 
-  # Cria Release no GitHub (com pacote instalável do app Nextcloud) ao fazer merge na main
+  # Cria Release no GitHub (com pacote assinado) e publica opcionalmente na Nextcloud App Store
   release-on-main:
-    name: Create GitHub Release
+    name: Create GitHub Release & Publish to Nextcloud App Store
     needs: [build-and-test, sonarqube]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -239,9 +256,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Determine version tag, package Nextcloud app and create Release
+      - name: Determine version tag, sign package, create GitHub Release & upload to Nextcloud App Store
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NC_APP_PRIVATE_KEY: ${{ secrets.NC_APP_PRIVATE_KEY }}
+          NC_APP_CERTIFICATE: ${{ secrets.NC_APP_CERTIFICATE }}
+          NC_APPSTORE_TOKEN: ${{ secrets.NC_APPSTORE_TOKEN }}
         run: |
           PROJECT_VERSION="0.1.0"
           if [ -f appinfo/info.xml ]; then
@@ -288,31 +308,75 @@ jobs:
             fi
           fi
 
-          RELEASE_ASSET=""
-          if [ -f appinfo/info.xml ]; then
-            APP_ID="nextcloud_video_player"
-            PKG_DIR=$(mktemp -d)
-            mkdir -p "${PKG_DIR}/${APP_ID}"
-            for item in appinfo lib js css templates img l10n LICENSE README.md; do
-              if [ -e "$item" ]; then
-                cp -r "$item" "${PKG_DIR}/${APP_ID}/"
-              fi
-            done
-            RELEASE_ASSET="${APP_ID}-${TAG}.tar.gz"
-            tar -czf "$RELEASE_ASSET" -C "$PKG_DIR" "$APP_ID"
-            rm -rf "$PKG_DIR"
+          APP_ID="nextcloud_video_player"
+          PKG_DIR=$(mktemp -d)
+          APP_PKG_PATH="${PKG_DIR}/${APP_ID}"
+          mkdir -p "$APP_PKG_PATH"
+
+          for item in appinfo lib js css templates img l10n screenshots LICENSE README.md CHANGELOG.md; do
+            if [ -e "$item" ]; then
+              cp -r "$item" "$APP_PKG_PATH/"
+            fi
+          done
+          find "$APP_PKG_PATH" -name '.gitkeep' -delete
+
+          KEY_FILE=""
+          if [ -n "${NC_APP_PRIVATE_KEY:-}" ] && [ -n "${NC_APP_CERTIFICATE:-}" ]; then
+            echo "🔐 Gerando assinatura de integridade appinfo/signature.json..."
+            KEY_FILE="${PKG_DIR}/app.key"
+            CRT_FILE="${PKG_DIR}/app.crt"
+            printf "%s\n" "$NC_APP_PRIVATE_KEY" > "$KEY_FILE"
+            printf "%s\n" "$NC_APP_CERTIFICATE" > "$CRT_FILE"
+            chmod 600 "$KEY_FILE"
+
+            python3 - "$APP_PKG_PATH" "$KEY_FILE" "$CRT_FILE" << 'PY_SIGN'
+          import datetime, hashlib, json, os, subprocess, sys
+          app_dir, key_file, crt_file = sys.argv[1], sys.argv[2], sys.argv[3]
+          hashes = {}
+          for root, _, files in os.walk(app_dir):
+              for f in sorted(files):
+                  full = os.path.join(root, f)
+                  rel = os.path.relpath(full, app_dir).replace("\\", "/")
+                  if rel == "appinfo/signature.json":
+                      continue
+                  with open(full, "rb") as fp:
+                      hashes[rel] = hashlib.sha512(fp.read()).hexdigest()
+          with open(crt_file, "r", encoding="utf-8") as fp:
+              cert_pem = fp.read()
+          payload_bytes = json.dumps(hashes, separators=(",", ":")).encode("utf-8")
+          sig_raw = subprocess.check_output(["openssl", "dgst", "-sha512", "-sign", key_file], input=payload_bytes)
+          import base64
+          sig_doc = {
+              "hashes": hashes,
+              "signature": base64.b64encode(sig_raw).decode("ascii"),
+              "certificate": cert_pem,
+          }
+          with open(os.path.join(app_dir, "appinfo", "signature.json"), "w", encoding="utf-8") as fp:
+              json.dump(sig_doc, fp, indent=4)
+          PY_SIGN
           fi
 
-          echo "Criando tag e release para: $TAG"
-          if [ -n "$RELEASE_ASSET" ] && [ -f "$RELEASE_ASSET" ]; then
-            gh release create "$TAG" \
-              "$RELEASE_ASSET" \
-              --target main \
-              --title "Release $TAG" \
-              --generate-notes
+          RELEASE_ASSET="${APP_ID}-${TAG}.tar.gz"
+          tar -czf "$RELEASE_ASSET" -C "$PKG_DIR" "$APP_ID"
+
+          echo "Criando tag e GitHub Release para: $TAG"
+          gh release create "$TAG" \
+            "$RELEASE_ASSET" \
+            --target main \
+            --title "Release $TAG" \
+            --generate-notes
+
+          if [ -n "${NC_APPSTORE_TOKEN:-}" ] && [ -n "$KEY_FILE" ] && [ -f "$KEY_FILE" ]; then
+            echo "🚀 Publicando release na Nextcloud App Store (apps.nextcloud.com)..."
+            DOWNLOAD_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${RELEASE_ASSET}"
+            TARBALL_SIG=$(openssl dgst -sha512 -sign "$KEY_FILE" "$RELEASE_ASSET" | openssl base64 -A)
+            curl -fsSL -X POST "https://apps.nextcloud.com/api/v1/apps/releases" \
+              -H "Authorization: Token ${NC_APPSTORE_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{\"download\":\"${DOWNLOAD_URL}\",\"signature\":\"${TARBALL_SIG}\",\"nightly\":false}"
+            echo "✅ Versão $TAG publicada com sucesso na Nextcloud App Store!"
           else
-            gh release create "$TAG" \
-              --target main \
-              --title "Release $TAG" \
-              --generate-notes
+            echo "::warning::Secrets NC_APPSTORE_TOKEN / NC_APP_PRIVATE_KEY / NC_APP_CERTIFICATE não configurados. A GitHub Release foi publicada normalmente; configure os secrets para publicar automaticamente em apps.nextcloud.com."
           fi
+
+          rm -rf "$PKG_DIR"
