@@ -1,0 +1,19 @@
+{
+  "name": "nextcloud_video_player",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Nextcloud Video Player frontend modules and unit tests",
+  "type": "module",
+  "scripts": {
+    "lint": "eslint js/ tests/js/",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.5",
+    "eslint": "^9.15.0",
+    "globals": "^15.12.0",
+    "jsdom": "^25.0.1",
+    "vitest": "^2.1.5"
+  }
+}

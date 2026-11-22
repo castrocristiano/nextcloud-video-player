@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720">
+  <rect width="1280" height="720" fill="#f8fafc"/>
+  <rect x="80" y="40" width="1120" height="640" rx="14" fill="#ffffff" stroke="#cbd5e1"/>
+  <rect x="80" y="40" width="1120" height="54" rx="14" fill="#f1f5f9"/>
+  <text x="108" y="74" fill="#0f172a" font-family="sans-serif" font-size="18" font-weight="bold">Interstellar (2014).mp4 — Fullscreen HTML5 Player (HTTP 206 Range + Subtitles)</text>
+  <rect x="80" y="94" width="1120" height="510" fill="#000000"/>
+  <circle cx="640" cy="349" r="44" fill="#0082c9"/>
+  <polygon points="628,325 666,349 628,373" fill="#ffffff"/>
+  <rect x="280" y="540" width="720" height="38" rx="6" fill="#111827" opacity="0.82"/>
+  <text x="640" y="565" text-anchor="middle" fill="#ffffff" font-family="sans-serif" font-size="16">Legendas locais (.vtt / .srt em memória) • 1.25x • Próximo vídeo automático</text>
+  <rect x="80" y="604" width="1120" height="76" fill="#f1f5f9"/>
+  <rect x="220" y="634" width="740" height="8" rx="4" fill="#0082c9"/>
+</svg>
