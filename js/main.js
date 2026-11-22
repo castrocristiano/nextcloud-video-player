@@ -933,6 +933,27 @@ async function removeUserRootFromLibrary(state, rootId) {
   // --- js/modules/player.js ---
 const FULLSCREEN_HIDE_DELAY_MS = 2500;
 const AUTOPLAY_COUNTDOWN_SECONDS = 5;
+const TRANSCODE_EXTENSIONS = new Set([
+  "avi",
+  "mkv",
+  "wmv",
+  "flv",
+  "mpg",
+  "mpeg",
+  "rmvb",
+  "3gp",
+  "ts",
+  "m2ts",
+]);
+
+function requiresImmediateTranscode(filename) {
+  const parts = String(filename || "").toLowerCase().split(".");
+  if (parts.length < 2) {
+    return false;
+  }
+  const ext = parts[parts.length - 1];
+  return TRANSCODE_EXTENSIONS.has(ext);
+}
 
 class VideoPlayerController {
   constructor(dom, state, sessionManager, { onCatalogRefresh = null } = {}) {
@@ -1066,6 +1087,16 @@ class VideoPlayerController {
     });
 
     dom.videoElement.addEventListener("error", () => {
+      if (
+        state.capabilities?.ffmpegEnabled &&
+        !state.isTranscodedStream &&
+        !state.triedTranscodeFallback &&
+        state.currentVideo
+      ) {
+        state.triedTranscodeFallback = true;
+        this.switchToTranscodedStream(state.currentVideo, 0);
+        return;
+      }
       dom.playerErrorBanner?.classList.remove("hidden");
     });
 
@@ -1092,6 +1123,12 @@ class VideoPlayerController {
     state.currentVideo = video;
     state.transcodeBaseOffset = 0;
     state.totalDuration = 0;
+    state.triedTranscodeFallback = false;
+
+    const useTranscodeImmediately =
+      Boolean(state.capabilities?.ffmpegEnabled) &&
+      requiresImmediateTranscode(video.name);
+    state.isTranscodedStream = useTranscodeImmediately;
 
     dom.playerErrorBanner?.classList.add("hidden");
     dom.resumeBanner?.classList.add("hidden");
@@ -1111,15 +1148,21 @@ class VideoPlayerController {
     }
 
     // Start tracked playback session on the server
-    const sessionResp = await this.sessionManager.startSession(video, "direct");
+    const streamMode = useTranscodeImmediately ? "transcode" : "direct";
+    const sessionResp = await this.sessionManager.startSession(video, streamMode);
     const sessionToken = sessionResp.sessionToken;
+
+    const streamParams = {
+      path: video.relativePath,
+      sessionToken,
+    };
+    if (useTranscodeImmediately) {
+      streamParams.transcode = "1";
+    }
 
     const streamUrl = buildAppUrl(
       `/api/v1/stream/${encodeURIComponent(video.rootId)}`,
-      {
-        path: video.relativePath,
-        sessionToken,
-      }
+      streamParams
     );
 
     this.populateSubtitleTracks(video);
@@ -1133,7 +1176,8 @@ class VideoPlayerController {
     if (
       savedProgress &&
       !savedProgress.completed &&
-      savedProgress.currentTime > 3
+      savedProgress.currentTime > 3 &&
+      !useTranscodeImmediately
     ) {
       dom.videoElement.currentTime = savedProgress.currentTime;
       if (dom.resumeBanner && dom.resumeBannerText) {
@@ -1155,6 +1199,39 @@ class VideoPlayerController {
       completed: false,
     }));
 
+    try {
+      await dom.videoElement.play();
+      if (dom.playPauseBtn) {
+        dom.playPauseBtn.textContent = "❚❚";
+      }
+    } catch {
+      if (dom.playPauseBtn) {
+        dom.playPauseBtn.textContent = "▶";
+      }
+    }
+  }
+
+  async switchToTranscodedStream(video, startOffsetSeconds = 0) {
+    const { dom, state } = this;
+    state.isTranscodedStream = true;
+    state.transcodeBaseOffset = Math.max(0, Number(startOffsetSeconds) || 0);
+    dom.playerErrorBanner?.classList.add("hidden");
+
+    const sessionResp = await this.sessionManager.startSession(video, "transcode");
+    const streamUrl = buildAppUrl(
+      `/api/v1/stream/${encodeURIComponent(video.rootId)}`,
+      {
+        path: video.relativePath,
+        sessionToken: sessionResp.sessionToken,
+        transcode: "1",
+        ...(state.transcodeBaseOffset > 0
+          ? { start: state.transcodeBaseOffset }
+          : {}),
+      }
+    );
+
+    dom.videoElement.src = streamUrl;
+    dom.videoElement.playbackRate = state.prefs.playbackRate || 1.0;
     try {
       await dom.videoElement.play();
       if (dom.playPauseBtn) {

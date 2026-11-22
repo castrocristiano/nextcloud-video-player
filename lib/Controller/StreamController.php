@@ -64,6 +64,8 @@ class StreamController extends Controller
 
         $path = (string) $this->request->getParam('path', '');
         $sessionToken = (string) $this->request->getParam('sessionToken', '');
+        $transcodeRequested = filter_var($this->request->getParam('transcode', false), FILTER_VALIDATE_BOOLEAN);
+        $startSeconds = max(0.0, (float) $this->request->getParam('start', 0));
 
         try {
             $this->sessionService->validateStreamingSession($userId, $sessionToken, $rootId, $path);
@@ -77,6 +79,40 @@ class StreamController extends Controller
 
             // Release the PHP session lock BEFORE opening/streaming the file so concurrent requests stay responsive
             $this->phpSession->close();
+
+            if ($transcodeRequested && $this->ffmpegService->isTranscodingEnabled()) {
+                $stream = $file->fopen('r');
+                if (!is_resource($stream)) {
+                    return $this->errorResponse($this->l10n->t('Unable to open video file stream'), Http::STATUS_INTERNAL_SERVER_ERROR);
+                }
+                $ffmpegService = $this->ffmpegService;
+                return new class($stream, $startSeconds, $ffmpegService) extends Response implements ICallbackResponse {
+                    /**
+                     * @param resource $stream
+                     */
+                    public function __construct(
+                        private $stream,
+                        private float $startSeconds,
+                        private FfmpegService $ffmpegService
+                    ) {
+                        $this->setStatus(Http::STATUS_OK);
+                        $this->addHeader('Content-Type', 'video/mp4');
+                        $this->addHeader('Cache-Control', 'no-store');
+                        $this->addHeader('X-Content-Type-Options', 'nosniff');
+                    }
+
+                    public function callback(IOutput $output): void
+                    {
+                        $this->ffmpegService->transcodeStreamToCallback(
+                            $this->stream,
+                            $this->startSeconds,
+                            static function (string $chunk) use ($output): void {
+                                $output->setOutput($chunk);
+                            }
+                        );
+                    }
+                };
+            }
 
             $mimeType = $this->catalogService->getMimeTypeForFilename($file->getName());
             $rangeHeader = $this->request->getHeader('Range');

@@ -113,6 +113,8 @@ class FfmpegService
             '-hide_banner',
             '-loglevel',
             'error',
+            '-i',
+            $inputPath,
         ];
 
         if ($safeStart > 0.0) {
@@ -122,8 +124,6 @@ class FfmpegService
 
         array_push(
             $cmd,
-            '-i',
-            $inputPath,
             '-c:v',
             'libx264',
             '-preset',
@@ -144,6 +144,113 @@ class FfmpegService
         );
 
         return $cmd;
+    }
+
+    /**
+     * Streams a readable PHP stream resource through FFmpeg stdin and emits fragmented MP4 chunks to $writer.
+     *
+     * @param resource $inputStream
+     * @param callable(string): void $writer
+     */
+    public function transcodeStreamToCallback($inputStream, float $startSeconds, callable $writer): void
+    {
+        $cmd = $this->buildTranscodeCommand('pipe:0', $startSeconds);
+        $descriptors = [
+            0 => ['pipe', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ];
+
+        $process = @proc_open($cmd, $descriptors, $pipes);
+        if (!is_resource($process)) {
+            if (is_resource($inputStream)) {
+                @fclose($inputStream);
+            }
+            return;
+        }
+
+        stream_set_blocking($pipes[0], false);
+        stream_set_blocking($pipes[1], false);
+        stream_set_blocking($pipes[2], false);
+
+        $inBuf = '';
+        $eofIn = false;
+
+        try {
+            while (true) {
+                if (connection_aborted() !== 0) {
+                    break;
+                }
+
+                if (!$eofIn && strlen($inBuf) < 131072) {
+                    $chunk = @fread($inputStream, 65536);
+                    if ($chunk === false || $chunk === '') {
+                        if (@feof($inputStream)) {
+                            $eofIn = true;
+                        }
+                    } else {
+                        $inBuf .= $chunk;
+                    }
+                }
+
+                if ($eofIn && $inBuf === '' && is_resource($pipes[0])) {
+                    @fclose($pipes[0]);
+                }
+
+                $readPipes = [];
+                if (is_resource($pipes[1]) && !@feof($pipes[1])) {
+                    $readPipes[] = $pipes[1];
+                }
+                if (is_resource($pipes[2]) && !@feof($pipes[2])) {
+                    $readPipes[] = $pipes[2];
+                }
+
+                $writePipes = ($inBuf !== '' && is_resource($pipes[0])) ? [$pipes[0]] : null;
+                $exceptPipes = null;
+
+                if ($readPipes === [] && $writePipes === null) {
+                    break;
+                }
+
+                $selected = @stream_select($readPipes, $writePipes, $exceptPipes, 0, 50000);
+                if ($selected === false) {
+                    break;
+                }
+
+                if ($writePipes !== null && in_array($pipes[0], $writePipes, true)) {
+                    $written = @fwrite($pipes[0], $inBuf);
+                    if ($written === false) {
+                        @fclose($pipes[0]);
+                        $inBuf = '';
+                        $eofIn = true;
+                    } elseif ($written > 0) {
+                        $inBuf = (string) substr($inBuf, $written);
+                    }
+                }
+
+                if (in_array($pipes[1], $readPipes, true)) {
+                    $outChunk = @fread($pipes[1], 65536);
+                    if ($outChunk !== false && $outChunk !== '') {
+                        $writer($outChunk);
+                    }
+                }
+
+                if (in_array($pipes[2], $readPipes, true)) {
+                    @fread($pipes[2], 65536);
+                }
+            }
+        } finally {
+            foreach ([0, 1, 2] as $idx) {
+                if (isset($pipes[$idx]) && is_resource($pipes[$idx])) {
+                    @fclose($pipes[$idx]);
+                }
+            }
+            @proc_terminate($process);
+            @proc_close($process);
+            if (is_resource($inputStream)) {
+                @fclose($inputStream);
+            }
+        }
     }
 
     /**
