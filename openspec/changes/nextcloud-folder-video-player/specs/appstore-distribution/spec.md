@@ -7,7 +7,7 @@ Especifica os requisitos de conformidade, metadados, empacotamento limpo, assina
 ## ADDED Requirements
 
 ### Requirement: Nextcloud App Store compliant metadata and catalog assets
-The system SHALL provide an `appinfo/info.xml` validated strictly against the official Nextcloud App Store XSD schema, declaring valid category `multimedia`, Nextcloud 30–32 and PHP 8.2+ compatibility, AGPL v3.0 license, navigation and admin settings entries, repository/issue links, and light/dark catalog screenshots.
+The system SHALL provide an `appinfo/info.xml` validated strictly against the official Nextcloud App Store XSD schema, declaring valid category `multimedia`, Nextcloud 30–32 and PHP 8.2+ compatibility, AGPL v3.0 license, default English (`en`) and Brazilian Portuguese (`pt_BR`) localized metadata, navigation and admin settings entries, repository/issue links, and light/dark catalog screenshots.
 
 #### Scenario: Validating app metadata against official XSD schema
 - **GIVEN** o repositório contém `appinfo/info.xml`, ícone local do app e referências de capturas de tela em `screenshots/`

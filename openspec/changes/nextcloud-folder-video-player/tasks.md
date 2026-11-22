@@ -2,8 +2,8 @@
 
 ## 1. Scaffolding do App Nextcloud, Metadados App Store e Tooling de Qualidade
 
-- [ ] 1.1 Criar `appinfo/info.xml` completo para o catálogo da Nextcloud App Store (`nextcloud_video_player`, categoria `multimedia`, Nextcloud 30–32, PHP 8.2–8.4, licença `agpl`, `<navigations>`, `<settings><admin>`, `<website>`, `<bugs>`, `<repository>`, `<screenshot>`) e validar contra o XSD oficial (`https://apps.nextcloud.com/schema/apps/info.xsd`)
-- [ ] 1.2 Criar `appinfo/routes.php`, `lib/AppInfo/Application.php` (`IBootstrap`, registro de navegação, DI, `AdminSettings`, `UserLoggedOutListener` e `SessionCleanupJob`), `img/app.svg`, `CHANGELOG.md` e estrutura inicial de `l10n/` (`pt_BR`, `en`)
+- [ ] 1.1 Criar `appinfo/info.xml` completo para o catálogo da Nextcloud App Store (`nextcloud_video_player`, categoria `multimedia`, Nextcloud 30–32, PHP 8.2–8.4, licença `agpl`, metadados padrão em inglês `en` e localizados em `pt_BR`, `<navigations>`, `<settings><admin>`, `<website>`, `<bugs>`, `<repository>`, `<screenshot>`) e validar contra o XSD oficial (`https://apps.nextcloud.com/schema/apps/info.xsd`)
+- [ ] 1.2 Criar `appinfo/routes.php`, `lib/AppInfo/Application.php` (`IBootstrap`, registro de navegação com `OCP\IL10N`, DI, `AdminSettings`, `UserLoggedOutListener` e `SessionCleanupJob`), `img/app.svg` e `CHANGELOG.md`
 - [ ] 1.3 Configurar `composer.json`, `phpunit.xml` e `phpstan.neon` (PHPUnit 11 + PHPStan + stubs `christophwurst/nextcloud`) e verificar execução limpa de `vendor/bin/phpstan` e `vendor/bin/phpunit`
 - [ ] 1.4 Configurar `package.json`, `eslint.config.js` e `vitest.config.js` (ESLint 9 + Vitest + `@vitest/coverage-v8` com saída `coverage/lcov.info` + `jsdom`) e verificar execução limpa de `npm run lint` e `npm run test:coverage`
 
@@ -36,12 +36,13 @@
 
 ## 6. Frontend Vanilla JS + CSS Integrado ao Nextcloud
 
-- [ ] 6.1 Criar templates `templates/main.php` (catálogo, player, modal de pastas e modal de sessões ativas) e `templates/admin.php` (pastas globais, FFmpeg, TTL e limite de sessões) sem scripts/estilos inline
+- [ ] 6.1 Criar templates `templates/main.php` (catálogo, player, modal de pastas e modal de sessões ativas) e `templates/admin.php` (pastas globais, FFmpeg, TTL e limite de sessões) com 100% das strings em inglês (`en`) passando por `$l->t()`/`$l->n()` e sem scripts/estilos inline
 - [ ] 6.2 Criar `css/style.css` portando o layout responsivo e o modo tela cheia estilo YouTube do `lan-video-player` utilizando variáveis CSS nativas do Nextcloud (suporte automático a temas claro e escuro)
-- [ ] 6.3 Implementar `js/modules/api.js` (CSRF `OC.requestToken` e `OC.generateUrl`), `js/modules/formatters.js`, `js/modules/state.js` (sincronizado com `/api/v1/preferences` e progresso vindo do servidor) e `js/modules/session.js` (abertura, *heartbeat* periódico, tratamento de `429`, encerramento via `keepalive`/`sendBeacon` e painel de sessões ativas)
-- [ ] 6.4 Implementar `js/modules/catalog.js` e `js/modules/picker.js` (abas de raízes globais/pessoais, *breadcrumbs*, cartões com miniatura e barra de progresso sincronizada, busca, ordenação, estado vazio e seletor visual de pastas)
-- [ ] 6.5 Implementar `js/modules/player.js`, `js/main.js` e `js/admin.js` (player HTML5 com *seek* Range/FFmpeg autenticado por `sessionToken`, auto-ocultamento de controles em tela cheia após 2,5s, velocidade `0.5x`–`2.0x`, atalhos de teclado/TV, legendas `.vtt`/`.srt`, seletor de áudio com fallback, retomada sincronizada e próximo vídeo automático com contagem regressiva de 5s)
-- [ ] 6.6 Criar testes unitários Vitest em `tests/js/` cobrindo `formatters`, `state`, `session` (*heartbeat*, `429`, `keepalive`/revogação), `catalog` e `player` com geração de `coverage/lcov.info`
+- [ ] 6.3 Implementar `js/modules/api.js` (CSRF `OC.requestToken` e `OC.generateUrl`), `js/modules/i18n.js` (`OC.L10N` / `t()` / `n()` / `getLocale()` com fallback para `en`), `js/modules/formatters.js` (formatação regional de datas por locale), `js/modules/state.js` (sincronizado com `/api/v1/preferences` e progresso vindo do servidor) e `js/modules/session.js` (abertura, *heartbeat* periódico, tratamento de `429`, encerramento via `keepalive`/`sendBeacon` e painel de sessões ativas)
+- [ ] 6.4 Implementar `js/modules/catalog.js` e `js/modules/picker.js` (abas de raízes globais/pessoais, *breadcrumbs*, cartões com miniatura e barra de progresso sincronizada, busca, ordenação, estado vazio e seletor visual de pastas, todos internacionalizados via `i18n.js`)
+- [ ] 6.5 Implementar `js/modules/player.js`, `js/main.js` e `js/admin.js` (player HTML5 com *seek* Range/FFmpeg autenticado por `sessionToken`, auto-ocultamento de controles em tela cheia após 2,5s, velocidade `0.5x`–`2.0x`, atalhos de teclado/TV, legendas `.vtt`/`.srt`, seletor de áudio com fallback, retomada sincronizada e próximo vídeo automático com contagem regressiva de 5s, todos internacionalizados via `i18n.js`)
+- [ ] 6.6 Criar os catálogos completos de tradução `l10n/pt_BR.json` e `l10n/pt_BR.js` (cobrindo 100% das strings PHP/templates/JS em inglês `en`, incluindo pluralizações) e adicionar testes automatizados de consistência de chaves, pluralização, formatação de datas por locale e fallback para `en`
+- [ ] 6.7 Criar testes unitários Vitest em `tests/js/` cobrindo `i18n`, `formatters`, `state`, `session` (*heartbeat*, `429`, `keepalive`/revogação), `catalog` e `player` com geração de `coverage/lcov.info`
 
 ## 7. Distribuição no Catálogo Nextcloud App Store e Quality Gate (`appstore-distribution`)
 

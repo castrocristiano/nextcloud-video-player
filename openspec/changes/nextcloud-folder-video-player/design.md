@@ -78,17 +78,18 @@ Restrições fundamentais do ambiente alvo:
     admin.js                 # Entrypoint das configurações de administração
     modules/
       api.js                 # Cliente HTTP com OC.requestToken (CSRF) e OC.generateUrl
+      i18n.js                # Wrapper nativo sobre OC.L10N / t() / n() e OC.getLocale() com fallback para en
       state.js               # Estado em memória sincronizado com /api/v1/preferences e /api/v1/progress
       session.js             # Ciclo de vida da sessão no cliente (start, heartbeat, keepalive/sendBeacon)
       catalog.js             # Renderização de raízes, breadcrumbs, pastas, vídeos, busca e ordenação
       picker.js              # Modal de gerenciamento e seletor visual de pastas do Nextcloud
       player.js              # Motor HTML5, seek Range/FFmpeg, fullscreen estilo YouTube, atalhos, legendas e autoplay
-      formatters.js          # Funções puras (bytes, datas, duração)
+      formatters.js          # Funções puras (bytes, datas por locale, duração)
   css/
     style.css                # Layout responsivo usando var(--color-*) do Nextcloud
   img/
     app.svg                  # Ícone do app (SVG local)
-  l10n/                      # Arquivos de tradução (pt_BR, en) para o catálogo Nextcloud
+  l10n/                      # Catálogos de tradução Nextcloud (pt_BR.json, pt_BR.js e extensível para novos locales)
   screenshots/               # Capturas de tela (claro/escuro) referenciadas no info.xml para a App Store
   CHANGELOG.md               # Histórico de versões exigido/recomendado na App Store
   tests/
@@ -219,7 +220,16 @@ Restrições fundamentais do ambiente alvo:
   4. Se `NC_APPSTORE_TOKEN`, `NC_APP_PRIVATE_KEY` e `NC_APP_CERTIFICATE` estiverem definidos: assinar o `.tar.gz` (`openssl dgst -sha512 -sign key.pem tarball.tar.gz | openssl base64 -A`) e publicar na API oficial via `POST https://apps.nextcloud.com/api/v1/apps/releases` com cabeçalho `Authorization: Token ${NC_APPSTORE_TOKEN}` e payload JSON `{ "download": "<url>", "signature": "<base64>", "nightly": false }`.
   5. Caso os segredos ainda não existam, concluir a GitHub Release normalmente e emitir `::warning::` orientando quais segredos configurar.
 
-### 7. Frontend Vanilla JS Modular e Compatibilidade CSP
+### 7. Internacionalização (i18n) Multi-Idioma Nativa do Nextcloud
+- **Decisão**: Utilizar o mecanismo oficial de localização do Nextcloud (`OCP\IL10N` no PHP e `OC.L10N` / `l10n/<locale>.json` + `l10n/<locale>.js` no frontend), com **Inglês (`en`) como idioma fonte e fallback**, entregando **Inglês (`en`)** e **Português do Brasil (`pt_BR`)** completos na v1.
+- **Justificativa**: Mantém compatibilidade total com a CSP do Nextcloud (0 bibliotecas externas), respeita automaticamente o idioma selecionado pelo usuário no perfil do Nextcloud e permite adicionar novos idiomas (ex.: `es`, `fr`, `de`) apenas adicionando novos pares `l10n/<locale>.json` e `l10n/<locale>.js` (inclusive integrável ao Transifex da comunidade Nextcloud).
+- **Implementação Backend & Frontend**:
+  - **PHP (`OCP\IL10N`)**: Templates (`templates/main.php`, `templates/admin.php`), `AdminSection`, `Application` (rótulo do menu) e mensagens de erro amigáveis de controllers usam `$this->l10n->t('...')` e `$this->l10n->n('...', '...', $count)` com textos fonte em inglês (`en`).
+  - **JavaScript (`js/modules/i18n.js`)**: Exporta `t(text, vars)`, `n(singular, plural, count, vars)` e `getLocale()` delegando para `window.t` / `window.n` / `OC.L10N.translate('nextcloud_video_player', ...)` com fallback seguro para a string fonte em inglês (`en`) em testes Vitest ou quando a chave não existir no catálogo ativo. `formatDate()` em `formatters.js` usa `Intl.DateTimeFormat(getLocale(), ...)`.
+  - **Catálogos `l10n/`**: `l10n/pt_BR.json` (consumido pelo PHP `IL10N`) e `l10n/pt_BR.js` (`OC.L10N.register('nextcloud_video_player', { ... }, pluralForm)` carregado automaticamente pelo Nextcloud no navegador). Um teste automatizado verifica consistência entre `l10n/pt_BR.json` e `l10n/pt_BR.js` (mesmas chaves e ausência de entradas vazias).
+  - **Metadados `appinfo/info.xml`**: `<name>`, `<summary>` e `<description>` padrão em inglês (`en`) acompanhados de `<summary lang="pt_BR">` e `<description lang="pt_BR">`.
+
+### 8. Frontend Vanilla JS Modular e Compatibilidade CSP
 - Módulos ES em `js/modules/` sem `eval`, sem inline `<script>`/`onclick` e sem recursos externos.
 - Variáveis CSS nativas do Nextcloud (`--color-main-background`, `--color-background-hover`, `--color-main-text`, `--color-border`, `--color-primary-element`) com suporte automático a temas claro e escuro.
 - Preferências e progresso sincronizados via API com o banco do servidor; `localStorage` usado apenas como cache otimista local caso haja micro-quedas de conectividade.
