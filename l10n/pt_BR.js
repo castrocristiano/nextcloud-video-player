@@ -1,5 +1,5 @@
 OC.L10N.register(
-  "nextcloud_video_player",
+  "folder_video_player",
   {
     "Video Player": "Player de Vídeo",
     "Nextcloud Video Player": "Player de Vídeo Nextcloud",

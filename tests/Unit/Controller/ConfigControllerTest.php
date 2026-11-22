@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace OCA\NextcloudVideoPlayer\Tests\Unit\Controller;
+namespace OCA\FolderVideoPlayer\Tests\Unit\Controller;
 
-use OCA\NextcloudVideoPlayer\Controller\ConfigController;
-use OCA\NextcloudVideoPlayer\Service\FfmpegService;
-use OCA\NextcloudVideoPlayer\Service\FolderConfigService;
+use OCA\FolderVideoPlayer\Controller\ConfigController;
+use OCA\FolderVideoPlayer\Service\FfmpegService;
+use OCA\FolderVideoPlayer\Service\FolderConfigService;
 use OCP\AppFramework\Http;
 use OCP\Files\NotPermittedException;
 use OCP\IL10N;
@@ -56,7 +56,7 @@ class ConfigControllerTest extends TestCase
         $l10n->method('t')->willReturnArgument(0);
 
         $controller = new ConfigController(
-            'nextcloud_video_player',
+            'folder_video_player',
             $request,
             $folderService,
             $ffmpegService,

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace OCA\NextcloudVideoPlayer\AppInfo;
+namespace OCA\FolderVideoPlayer\AppInfo;
 
-use OCA\NextcloudVideoPlayer\Listener\UserLoggedOutListener;
+use OCA\FolderVideoPlayer\Listener\UserLoggedOutListener;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
@@ -18,8 +18,8 @@ use OCP\User\Events\UserLoggedOutEvent;
 
 class Application extends App implements IBootstrap
 {
-    public const APP_ID = 'nextcloud_video_player';
-    public const APP_VERSION = '0.1.4';
+    public const APP_ID = 'folder_video_player';
+    public const APP_VERSION = '0.1.5';
 
     public function __construct(array $urlParams = [])
     {

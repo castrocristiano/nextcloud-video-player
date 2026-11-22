@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace OCA\NextcloudVideoPlayer\Service;
+namespace OCA\FolderVideoPlayer\Service;
 
-use OCA\NextcloudVideoPlayer\AppInfo\Application;
+use OCA\FolderVideoPlayer\AppInfo\Application;
 use OCP\IConfig;
 use RuntimeException;
 

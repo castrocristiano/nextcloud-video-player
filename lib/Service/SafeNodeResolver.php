@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace OCA\NextcloudVideoPlayer\Service;
+namespace OCA\FolderVideoPlayer\Service;
 
 use InvalidArgumentException;
 use OCP\Files\File;

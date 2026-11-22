@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace OCA\NextcloudVideoPlayer\Tests\Unit\Service;
+namespace OCA\FolderVideoPlayer\Tests\Unit\Service;
 
-use OCA\NextcloudVideoPlayer\Service\FfmpegService;
-use OCA\NextcloudVideoPlayer\Service\MediaStreamService;
+use OCA\FolderVideoPlayer\Service\FfmpegService;
+use OCA\FolderVideoPlayer\Service\MediaStreamService;
 use OCP\AppFramework\Http;
 use OCP\IConfig;
 use PHPUnit\Framework\TestCase;

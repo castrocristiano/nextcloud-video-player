@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace OCA\NextcloudVideoPlayer\Tests\Unit\Service;
+namespace OCA\FolderVideoPlayer\Tests\Unit\Service;
 
-use OCA\NextcloudVideoPlayer\Db\PlaybackProgressEntity;
-use OCA\NextcloudVideoPlayer\Db\PlaybackProgressMapper;
-use OCA\NextcloudVideoPlayer\Db\UserPreferenceEntity;
-use OCA\NextcloudVideoPlayer\Db\UserPreferenceMapper;
-use OCA\NextcloudVideoPlayer\Service\PreferenceService;
-use OCA\NextcloudVideoPlayer\Service\ProgressService;
+use OCA\FolderVideoPlayer\Db\PlaybackProgressEntity;
+use OCA\FolderVideoPlayer\Db\PlaybackProgressMapper;
+use OCA\FolderVideoPlayer\Db\UserPreferenceEntity;
+use OCA\FolderVideoPlayer\Db\UserPreferenceMapper;
+use OCA\FolderVideoPlayer\Service\PreferenceService;
+use OCA\FolderVideoPlayer\Service\ProgressService;
 use PHPUnit\Framework\TestCase;
 
 class ProgressAndPreferenceServiceTest extends TestCase

@@ -1,4 +1,4 @@
-const APP_ID = "nextcloud_video_player";
+const APP_ID = "folder_video_player";
 
 export function buildAppUrl(path, queryParams = {}) {
   const cleanPath = path.startsWith("/") ? path : `/${path}`;

@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace OCA\NextcloudVideoPlayer\Tests\Unit\Service;
+namespace OCA\FolderVideoPlayer\Tests\Unit\Service;
 
-use OCA\NextcloudVideoPlayer\Service\FolderConfigService;
-use OCA\NextcloudVideoPlayer\Service\ProgressService;
-use OCA\NextcloudVideoPlayer\Service\SafeNodeResolver;
-use OCA\NextcloudVideoPlayer\Service\SubtitleService;
-use OCA\NextcloudVideoPlayer\Service\VideoCatalogService;
+use OCA\FolderVideoPlayer\Service\FolderConfigService;
+use OCA\FolderVideoPlayer\Service\ProgressService;
+use OCA\FolderVideoPlayer\Service\SafeNodeResolver;
+use OCA\FolderVideoPlayer\Service\SubtitleService;
+use OCA\FolderVideoPlayer\Service\VideoCatalogService;
 use OCP\Files\File;
 use OCP\Files\Folder;
 use PHPUnit\Framework\TestCase;

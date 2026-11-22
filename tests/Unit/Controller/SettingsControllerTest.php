@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace OCA\NextcloudVideoPlayer\Tests\Unit\Controller;
+namespace OCA\FolderVideoPlayer\Tests\Unit\Controller;
 
-use OCA\NextcloudVideoPlayer\Controller\SettingsController;
-use OCA\NextcloudVideoPlayer\Service\FolderConfigService;
-use OCA\NextcloudVideoPlayer\Settings\AdminSection;
-use OCA\NextcloudVideoPlayer\Settings\AdminSettings;
+use OCA\FolderVideoPlayer\Controller\SettingsController;
+use OCA\FolderVideoPlayer\Service\FolderConfigService;
+use OCA\FolderVideoPlayer\Settings\AdminSection;
+use OCA\FolderVideoPlayer\Settings\AdminSettings;
 use OCP\AppFramework\Http;
 use OCP\IConfig;
 use OCP\IGroupManager;
@@ -39,7 +39,7 @@ class SettingsControllerTest extends TestCase
         $l10n->method('t')->willReturnArgument(0);
 
         $controller = new SettingsController(
-            'nextcloud_video_player',
+            'folder_video_player',
             $request,
             $folderService,
             $config,
@@ -93,7 +93,7 @@ class SettingsControllerTest extends TestCase
         $l10n->method('t')->willReturnArgument(0);
 
         $controller = new SettingsController(
-            'nextcloud_video_player',
+            'folder_video_player',
             $request,
             $folderService,
             $config,
@@ -115,7 +115,7 @@ class SettingsControllerTest extends TestCase
         $urlGen = $this->createMock(IURLGenerator::class);
         $urlGen->method('imagePath')->willReturn('/img/app.svg');
         $section = new AdminSection($l10n, $urlGen);
-        $this->assertSame('nextcloud_video_player', $section->getID());
+        $this->assertSame('folder_video_player', $section->getID());
         $this->assertSame('Video Player', $section->getName());
         $this->assertSame(75, $section->getPriority());
         $this->assertSame('/img/app.svg', $section->getIcon());
@@ -123,7 +123,7 @@ class SettingsControllerTest extends TestCase
         $adminSettings = new AdminSettings($folderService, $config);
         $form = $adminSettings->getForm();
         $this->assertSame('admin', $form->getTemplateName());
-        $this->assertSame('nextcloud_video_player', $adminSettings->getSection());
+        $this->assertSame('folder_video_player', $adminSettings->getSection());
         $this->assertSame(50, $adminSettings->getPriority());
     }
 }

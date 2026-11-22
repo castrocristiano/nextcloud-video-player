@@ -26,6 +26,6 @@ O workflow `.github/workflows/ci.yml` reproduz o padrão Gitflow + SonarQube do 
 3. **`auto-pr-to-develop` / `auto-pr-to-main`**:
    - Abertura automática de PRs de `feature/*` e `phase/*` → `develop` → `main` (e `hotfix/*` direto → `main`).
 4. **`release-on-main`**:
-   - Análise SemVer de *breaking changes*, geração do pacote `nextcloud_video_player-v*.tar.gz` e publicação da **GitHub Release**.
+   - Análise SemVer de *breaking changes*, geração do pacote `folder_video_player-v*.tar.gz` e publicação da **GitHub Release**.
 5. **`.github/workflows/deploy-wiki.yml`**:
    - Sincroniza `wiki/` com a GitHub Wiki a cada atualização da `main`.

@@ -12,12 +12,12 @@
     },
     "autoload": {
         "psr-4": {
-            "OCA\\NextcloudVideoPlayer\\": "lib/"
+            "OCA\\FolderVideoPlayer\\": "lib/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "OCA\\NextcloudVideoPlayer\\Tests\\Unit\\": "tests/Unit/"
+            "OCA\\FolderVideoPlayer\\Tests\\Unit\\": "tests/Unit/"
         },
         "files": [
             "tests/stubs/ocp.php"

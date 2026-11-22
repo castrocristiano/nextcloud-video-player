@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace OCA\NextcloudVideoPlayer\Tests\Unit\Service;
+namespace OCA\FolderVideoPlayer\Tests\Unit\Service;
 
 use InvalidArgumentException;
-use OCA\NextcloudVideoPlayer\Service\SafeNodeResolver;
+use OCA\FolderVideoPlayer\Service\SafeNodeResolver;
 use OCP\Files\File;
 use OCP\Files\Folder;
 use OCP\Files\IRootFolder;

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace OCA\NextcloudVideoPlayer\Tests\Unit\Migration;
+namespace OCA\FolderVideoPlayer\Tests\Unit\Migration;
 
-use OCA\NextcloudVideoPlayer\Migration\Version0001Date20261121000000;
+use OCA\FolderVideoPlayer\Migration\Version0001Date20261121000000;
 use OCP\DB\ISchemaWrapper;
 use OCP\DB\ITable;
 use OCP\Migration\IOutput;
