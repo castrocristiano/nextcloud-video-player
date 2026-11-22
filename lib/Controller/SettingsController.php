@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use OCA\NextcloudVideoPlayer\AppInfo\Application;
 use OCA\NextcloudVideoPlayer\Service\FolderConfigService;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Http;
 use OCP\IConfig;
@@ -30,6 +31,10 @@ class SettingsController extends Controller
         parent::__construct($appName, $request);
     }
 
+    /**
+     * @NoCSRFRequired
+     */
+    #[NoCSRFRequired]
     public function getSettings(): DataResponse
     {
         $adminCheck = $this->requireAdminUser();

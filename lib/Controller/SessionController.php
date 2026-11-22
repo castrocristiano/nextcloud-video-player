@@ -8,6 +8,8 @@ use InvalidArgumentException;
 use OCA\NextcloudVideoPlayer\Service\ConcurrentSessionLimitException;
 use OCA\NextcloudVideoPlayer\Service\PlaybackSessionService;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Http;
 use OCP\Files\NotFoundException;
@@ -31,6 +33,7 @@ class SessionController extends Controller
     /**
      * @NoAdminRequired
      */
+    #[NoAdminRequired]
     public function start(): DataResponse
     {
         $userId = $this->requireAuthenticatedUserId();
@@ -71,7 +74,10 @@ class SessionController extends Controller
 
     /**
      * @NoAdminRequired
+     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function listActive(): DataResponse
     {
         $userId = $this->requireAuthenticatedUserId();
@@ -89,6 +95,7 @@ class SessionController extends Controller
     /**
      * @NoAdminRequired
      */
+    #[NoAdminRequired]
     public function heartbeat(string $token): DataResponse
     {
         $userId = $this->requireAuthenticatedUserId();
@@ -123,6 +130,7 @@ class SessionController extends Controller
     /**
      * @NoAdminRequired
      */
+    #[NoAdminRequired]
     public function close(string $token): DataResponse
     {
         return $this->handleClose($token);
@@ -131,6 +139,7 @@ class SessionController extends Controller
     /**
      * @NoAdminRequired
      */
+    #[NoAdminRequired]
     public function closeBeacon(string $token): DataResponse
     {
         return $this->handleClose($token);

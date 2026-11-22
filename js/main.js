@@ -1552,12 +1552,14 @@ function collectDom() {
     activeRootsList: document.getElementById("activeRootsList"),
     selectCurrentDirBtn: document.getElementById("selectCurrentDirBtn"),
     pickerBreadcrumbsList: document.getElementById("pickerBreadcrumbsList"),
+    pickerStatusMsg: document.getElementById("pickerStatusMsg"),
     pickerDirsList: document.getElementById("pickerDirsList"),
     pickerSelectedCount: document.getElementById("pickerSelectedCount"),
     addSelectedDirsBtn: document.getElementById("addSelectedDirsBtn"),
     // Sessions Modal
     sessionsModal: document.getElementById("sessionsModal"),
     closeSessionsModalBtn: document.getElementById("closeSessionsModalBtn"),
+    sessionsStatusMsg: document.getElementById("sessionsStatusMsg"),
     activeSessionsList: document.getElementById("activeSessionsList"),
   };
 }
@@ -1611,8 +1613,25 @@ async function bootApp() {
     dom.alertBanner.classList.remove("hidden");
   }
 
+  function showPickerStatus(msg) {
+    if (!dom.pickerStatusMsg) {
+      return;
+    }
+    if (!msg) {
+      dom.pickerStatusMsg.textContent = "";
+      dom.pickerStatusMsg.classList.add("hidden");
+      return;
+    }
+    dom.pickerStatusMsg.textContent = msg;
+    dom.pickerStatusMsg.classList.remove("hidden");
+  }
+
   async function loadCurrentFolder() {
     showAlert("");
+    if (state.isSearching && state.searchQuery.trim().length > 0) {
+      await runSearch(state.searchQuery.trim());
+      return;
+    }
     if (!state.activeRootId) {
       state.folders = [];
       state.videos = [];
@@ -1631,86 +1650,203 @@ async function bootApp() {
       refreshView();
     } catch (err) {
       showAlert(err.message);
+      refreshView();
+    }
+  }
+
+  async function runSearch(query) {
+    const trimmed = String(query || "").trim();
+    if (!trimmed) {
+      state.isSearching = false;
+      state.searchQuery = "";
+      dom.clearSearchBtn?.classList.add("hidden");
+      await loadCurrentFolder();
+      return;
+    }
+
+    state.isSearching = true;
+    state.searchQuery = trimmed;
+    dom.clearSearchBtn?.classList.remove("hidden");
+    showAlert("");
+
+    try {
+      const data = await apiGet("/api/v1/search", {
+        q: trimmed,
+        sort: state.prefs.sortBy,
+      });
+      state.folders = [];
+      state.videos = data.videos || [];
+      refreshView();
+    } catch (err) {
+      showAlert(err.message);
+      refreshView();
     }
   }
 
   async function loadRoots() {
-    const data = await apiGet("/api/v1/roots");
-    state.roots = data.roots || [];
-    state.userId = data.meta?.userId || "";
-    state.capabilities = data.capabilities || { ffmpegEnabled: false };
-    if (
-      state.roots.length > 0 &&
-      !state.roots.some((r) => r.id === state.activeRootId)
-    ) {
-      state.activeRootId = state.roots[0].id;
-      state.currentPath = "/";
-    } else if (state.roots.length === 0) {
-      state.activeRootId = "";
+    try {
+      const data = await apiGet("/api/v1/roots");
+      state.roots = data.roots || [];
+      state.userId = data.meta?.userId || "";
+      state.capabilities = data.capabilities || { ffmpegEnabled: false };
+      if (
+        state.roots.length > 0 &&
+        !state.roots.some((r) => r.id === state.activeRootId)
+      ) {
+        state.activeRootId = state.roots[0].id;
+        state.currentPath = "/";
+      } else if (state.roots.length === 0) {
+        state.activeRootId = "";
+      }
+      await loadCurrentFolder();
+    } catch (err) {
+      showAlert(err.message);
+      refreshView();
     }
-    await loadCurrentFolder();
   }
 
-  await syncPreferencesFromServer(state);
-  if (dom.sortSelect) {
-    dom.sortSelect.value = state.prefs.sortBy;
+  async function handleRemoveRoot(rootId) {
+    try {
+      showPickerStatus("");
+      await removeUserRootFromLibrary(state, rootId);
+      renderActiveRootsInModal(dom, state, handleRemoveRoot);
+      await loadRoots();
+    } catch (err) {
+      showPickerStatus(err.message);
+    }
   }
-  await loadRoots();
 
-  dom.sortSelect?.addEventListener("change", async () => {
-    await savePreferencesToServer(state, { sortBy: dom.sortSelect.value });
-    await loadCurrentFolder();
+  async function openLibraryModal() {
+    dom.libraryModal?.classList.remove("hidden");
+    showPickerStatus("");
+    renderActiveRootsInModal(dom, state, handleRemoveRoot);
+    try {
+      await loadPickerDirectory(dom, state, state.pickerCurrentPath || "/");
+    } catch (err) {
+      showPickerStatus(err.message);
+    }
+  }
+
+  // Bind all topbar, catalog, picker, and session modal events IMMEDIATELY
+  dom.openLibraryModalBtn?.addEventListener("click", () => {
+    openLibraryModal();
   });
 
-  dom.openLibraryModalBtn?.addEventListener("click", async () => {
-    dom.libraryModal?.classList.remove("hidden");
-    renderActiveRootsInModal(dom, state, async (rootId) => {
-      await removeUserRootFromLibrary(state, rootId);
-      renderActiveRootsInModal(dom, state, () => {});
-      await loadRoots();
-    });
-    await loadPickerDirectory(dom, state, "/");
+  dom.emptyAddFoldersBtn?.addEventListener("click", () => {
+    openLibraryModal();
   });
 
   dom.closeLibraryModalBtn?.addEventListener("click", () => {
     dom.libraryModal?.classList.add("hidden");
   });
 
-  dom.addSelectedDirsBtn?.addEventListener("click", async () => {
-    await addSelectedFoldersToLibrary(state);
-    dom.libraryModal?.classList.add("hidden");
-    await loadRoots();
+  dom.selectCurrentDirBtn?.addEventListener("click", () => {
+    const currentDir = state.pickerCurrentPath || "/";
+    if (currentDir === "/") {
+      showPickerStatus(
+        t("Open or check a subfolder below to add it to your library.")
+      );
+      return;
+    }
+    showPickerStatus("");
+    state.pickerSelectedPaths.add(currentDir);
+    updatePickerSelectionCount(dom, state);
   });
+
+  dom.addSelectedDirsBtn?.addEventListener("click", async () => {
+    try {
+      showPickerStatus("");
+      await addSelectedFoldersToLibrary(state);
+      dom.libraryModal?.classList.add("hidden");
+      await loadRoots();
+    } catch (err) {
+      showPickerStatus(err.message);
+    }
+  });
+
+  dom.brandHome?.addEventListener("click", () => {
+    state.isSearching = false;
+    state.searchQuery = "";
+    if (dom.searchInput) {
+      dom.searchInput.value = "";
+    }
+    dom.clearSearchBtn?.classList.add("hidden");
+    state.currentPath = "/";
+    loadCurrentFolder();
+  });
+
+  dom.alertRetryBtn?.addEventListener("click", () => {
+    loadRoots();
+  });
+
+  dom.sortSelect?.addEventListener("change", async () => {
+    await savePreferencesToServer(state, { sortBy: dom.sortSelect.value });
+    await loadCurrentFolder();
+  });
+
+  let searchDebounce = null;
+  dom.searchInput?.addEventListener("input", () => {
+    if (searchDebounce) {
+      clearTimeout(searchDebounce);
+    }
+    const q = dom.searchInput.value;
+    searchDebounce = setTimeout(() => {
+      runSearch(q);
+    }, 280);
+  });
+
+  const clearSearchHandler = () => {
+    if (dom.searchInput) {
+      dom.searchInput.value = "";
+    }
+    dom.clearSearchBtn?.classList.add("hidden");
+    state.isSearching = false;
+    state.searchQuery = "";
+    loadCurrentFolder();
+  };
+
+  dom.clearSearchBtn?.addEventListener("click", clearSearchHandler);
+  dom.emptyResetSearchBtn?.addEventListener("click", clearSearchHandler);
 
   dom.openSessionsModalBtn?.addEventListener("click", async () => {
     dom.sessionsModal?.classList.remove("hidden");
-    const data = await sessionManager.fetchActiveSessions();
-    if (dom.activeSessionsList) {
-      dom.activeSessionsList.innerHTML = "";
-      const list = data.sessions || [];
-      if (list.length === 0) {
-        const li = document.createElement("li");
-        li.className = "ncvp-root-item";
-        li.textContent = t("No active playback sessions.");
-        dom.activeSessionsList.appendChild(li);
-      } else {
-        for (const s of list) {
+    if (dom.sessionsStatusMsg) {
+      dom.sessionsStatusMsg.classList.add("hidden");
+    }
+    try {
+      const data = await sessionManager.fetchActiveSessions();
+      if (dom.activeSessionsList) {
+        dom.activeSessionsList.innerHTML = "";
+        const list = data.sessions || [];
+        if (list.length === 0) {
           const li = document.createElement("li");
           li.className = "ncvp-root-item";
-          const span = document.createElement("span");
-          span.textContent = `${s.relativePath} (${s.status})`;
-          const btn = document.createElement("button");
-          btn.type = "button";
-          btn.className = "ncvp-btn ncvp-btn-danger ncvp-btn-sm";
-          btn.textContent = t("Terminate");
-          btn.addEventListener("click", async () => {
-            await sessionManager.revokeSession(s.sessionToken);
-            li.remove();
-          });
-          li.appendChild(span);
-          li.appendChild(btn);
+          li.textContent = t("No active playback sessions.");
           dom.activeSessionsList.appendChild(li);
+        } else {
+          for (const s of list) {
+            const li = document.createElement("li");
+            li.className = "ncvp-root-item";
+            const span = document.createElement("span");
+            span.textContent = `${s.relativePath} (${s.status})`;
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "ncvp-btn ncvp-btn-danger ncvp-btn-sm";
+            btn.textContent = t("Terminate");
+            btn.addEventListener("click", async () => {
+              await sessionManager.revokeSession(s.sessionToken);
+              li.remove();
+            });
+            li.appendChild(span);
+            li.appendChild(btn);
+            dom.activeSessionsList.appendChild(li);
+          }
         }
+      }
+    } catch (err) {
+      if (dom.sessionsStatusMsg) {
+        dom.sessionsStatusMsg.textContent = err.message;
+        dom.sessionsStatusMsg.classList.remove("hidden");
       }
     }
   });
@@ -1722,6 +1858,13 @@ async function bootApp() {
   window.addEventListener("pagehide", () => {
     sessionManager.closeCurrentSession({ useBeacon: true });
   });
+
+  // Load initial preferences and roots after all UI listeners are active
+  await syncPreferencesFromServer(state);
+  if (dom.sortSelect) {
+    dom.sortSelect.value = state.prefs.sortBy;
+  }
+  await loadRoots();
 }
 
 if (typeof document !== "undefined") {

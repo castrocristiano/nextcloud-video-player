@@ -12,6 +12,8 @@ use OCA\NextcloudVideoPlayer\Service\PlaybackSessionService;
 use OCA\NextcloudVideoPlayer\Service\SafeNodeResolver;
 use OCA\NextcloudVideoPlayer\Service\VideoCatalogService;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Http;
 use OCP\AppFramework\Http\ICallbackResponse;
@@ -51,6 +53,8 @@ class StreamController extends Controller
      * @NoAdminRequired
      * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function stream(string $rootId): Response
     {
         $userId = $this->requireAuthenticatedUserId();
@@ -132,7 +136,10 @@ class StreamController extends Controller
 
     /**
      * @NoAdminRequired
+     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function probe(string $rootId): DataResponse
     {
         $userId = $this->requireAuthenticatedUserId();
@@ -173,6 +180,8 @@ class StreamController extends Controller
      * @NoAdminRequired
      * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function thumbnail(string $rootId): Response
     {
         $userId = $this->requireAuthenticatedUserId();

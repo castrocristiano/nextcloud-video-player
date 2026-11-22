@@ -873,6 +873,22 @@ namespace OCP\AppFramework\Db {
     }
 }
 
+namespace OCP\AppFramework\Http\Attribute {
+    if (!class_exists(NoAdminRequired::class)) {
+        #[\Attribute(\Attribute::TARGET_METHOD)]
+        class NoAdminRequired
+        {
+        }
+    }
+
+    if (!class_exists(NoCSRFRequired::class)) {
+        #[\Attribute(\Attribute::TARGET_METHOD)]
+        class NoCSRFRequired
+        {
+        }
+    }
+}
+
 namespace OCP\AppFramework {
     if (!class_exists(App::class)) {
         class App
