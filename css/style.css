@@ -484,14 +484,70 @@
 }
 
 .ncvp-player-dialog:fullscreen .ncvp-player-stage,
-.ncvp-player-dialog.is-fullscreen .ncvp-player-stage,
+.ncvp-player-dialog.is-fullscreen .ncvp-player-stage {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  aspect-ratio: auto !important;
+}
+
 .ncvp-player-dialog:fullscreen .ncvp-player-stage video,
 .ncvp-player-dialog.is-fullscreen .ncvp-player-stage video {
-  width: 100vw !important;
-  height: 100vh !important;
-  max-height: 100vh !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-height: 100% !important;
   aspect-ratio: auto !important;
   object-fit: contain !important;
+}
+
+.ncvp-subtitle-overlay {
+  position: absolute;
+  left: 5%;
+  right: 5%;
+  bottom: 24px;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  pointer-events: none;
+  text-align: center;
+  transition: bottom 0.25s ease;
+}
+
+.ncvp-subtitle-line {
+  display: inline-block;
+  max-width: 88%;
+  padding: 5px 14px;
+  margin-top: 4px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.78);
+  color: #ffffff;
+  font-size: clamp(16px, 2.1vw, 26px);
+  line-height: 1.38;
+  font-weight: 600;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
+  white-space: pre-line;
+}
+
+.ncvp-player-dialog:fullscreen .ncvp-subtitle-overlay,
+.ncvp-player-dialog.is-fullscreen .ncvp-subtitle-overlay {
+  position: fixed;
+  bottom: 104px;
+  z-index: 10003;
+}
+
+.ncvp-player-dialog.fs-controls-hidden .ncvp-subtitle-overlay {
+  bottom: 42px;
+}
+
+.ncvp-sub-sync-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 4px;
 }
 
 .ncvp-player-dialog:fullscreen .ncvp-player-bottom-controls,

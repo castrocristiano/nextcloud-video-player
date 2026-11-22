@@ -8,7 +8,7 @@
     <summary lang="pt-br">Reproduza vídeos a partir de pastas pré-configuradas e pessoais</summary>
     <description lang="en">A lightweight, strictly read-only video catalog and HTML5 player for Nextcloud 30-35 inspired by lan-video-player. Supports hybrid folder configuration (global admin folders and per-user personal folders), relational database persistence for playback sessions, multi-device resume progress and preferences, HTTP Range (206 Partial Content) streaming, optional in-memory FFmpeg transcoding, local subtitles (.vtt and .srt), YouTube-style fullscreen controls, and multi-language localization (English default and Brazilian Portuguese).</description>
     <description lang="pt-br">Catálogo e player de vídeo HTML5 leve e estritamente somente-leitura para Nextcloud 30-35 inspirado no lan-video-player. Suporta configuração híbrida de pastas (pastas globais do administrador e pastas pessoais por usuário), persistência em tabelas relacionais para sessões de reprodução, retomada de progresso entre dispositivos e preferências, streaming HTTP Range (206 Partial Content), transcodificação opcional em memória via FFmpeg, legendas locais (.vtt e .srt), tela cheia estilo YouTube e internacionalização multi-idioma (Inglês padrão e Português do Brasil).</description>
-    <version>0.1.7</version>
+    <version>0.1.8</version>
     <licence>agpl</licence>
     <author mail="cscastro87@gmail.com" homepage="https://github.com/castrocristiano">Cristiano Castro</author>
     <namespace>FolderVideoPlayer</namespace>

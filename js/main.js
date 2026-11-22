@@ -1424,11 +1424,61 @@ class VideoPlayerController {
   applySelectedSubtitleTrack(selectedIdx) {
     const tracks = this.dom.videoElement?.textTracks;
     if (!tracks) {
+      this.renderSubtitleOverlayText("");
       return;
     }
+    const useCustomOverlay = Boolean(this.dom.subtitleOverlay);
     for (let i = 0; i < tracks.length; i++) {
-      tracks[i].mode = i === selectedIdx ? "showing" : "disabled";
+      const tr = tracks[i];
+      tr.oncuechange = null;
+      if (i === selectedIdx) {
+        tr.mode = useCustomOverlay ? "hidden" : "showing";
+        if (useCustomOverlay) {
+          const updateCues = () => {
+            const active = tr.activeCues;
+            if (!active || active.length === 0) {
+              this.renderSubtitleOverlayText("");
+              return;
+            }
+            const lines = [];
+            for (let c = 0; c < active.length; c++) {
+              const text = String(active[c].text || "")
+                .replace(/<\/?[^>]+(>|$)/g, "")
+                .trim();
+              if (text) {
+                lines.push(text);
+              }
+            }
+            this.renderSubtitleOverlayText(lines.join("\n"));
+          };
+          tr.oncuechange = updateCues;
+          updateCues();
+        }
+      } else {
+        tr.mode = "disabled";
+      }
     }
+    if (selectedIdx < 0 || selectedIdx >= tracks.length) {
+      this.renderSubtitleOverlayText("");
+    }
+  }
+
+  renderSubtitleOverlayText(text) {
+    const overlay = this.dom.subtitleOverlay;
+    if (!overlay) {
+      return;
+    }
+    overlay.innerHTML = "";
+    const cleaned = String(text || "").trim();
+    if (!cleaned) {
+      overlay.classList.add("hidden");
+      return;
+    }
+    const span = document.createElement("span");
+    span.className = "ncvp-subtitle-line";
+    span.textContent = cleaned;
+    overlay.appendChild(span);
+    overlay.classList.remove("hidden");
   }
 
   adjustSubtitleSyncOffset(deltaSeconds) {
@@ -1693,6 +1743,7 @@ class VideoPlayerController {
       dom.videoElement.pause();
       dom.videoElement.removeAttribute("src");
     }
+    this.renderSubtitleOverlayText("");
     dom.playerModal?.classList.add("hidden");
 
     await this.sessionManager.closeCurrentSession({
@@ -1795,6 +1846,7 @@ function collectDom() {
     playerErrorBanner: document.getElementById("playerErrorBanner"),
     errorBackToLibBtn: document.getElementById("errorBackToLibBtn"),
     videoElement: document.getElementById("videoElement"),
+    subtitleOverlay: document.getElementById("subtitleOverlay"),
     autoplayOverlay: document.getElementById("autoplayOverlay"),
     autoplayCountdown: document.getElementById("autoplayCountdown"),
     autoplayNextTitle: document.getElementById("autoplayNextTitle"),

@@ -120,6 +120,7 @@ $appVersion = isset($_['appVersion']) ? (string) $_['appVersion'] : '0.1.0';
 
 			<div class="ncvp-player-stage" id="playerStage">
 				<video id="videoElement" preload="metadata" playsinline></video>
+				<div id="subtitleOverlay" class="ncvp-subtitle-overlay hidden" aria-live="off"></div>
 
 				<div id="autoplayOverlay" class="ncvp-autoplay-overlay hidden">
 					<div class="ncvp-autoplay-card">
