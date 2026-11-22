@@ -430,7 +430,32 @@ namespace OCP\AppFramework\Bootstrap {
     }
 }
 
+namespace OCP\AppFramework {
+    if (!class_exists(Http::class)) {
+        class Http
+        {
+            public const STATUS_OK = 200;
+            public const STATUS_CREATED = 201;
+            public const STATUS_NO_CONTENT = 204;
+            public const STATUS_PARTIAL_CONTENT = 206;
+            public const STATUS_BAD_REQUEST = 400;
+            public const STATUS_UNAUTHORIZED = 401;
+            public const STATUS_FORBIDDEN = 403;
+            public const STATUS_NOT_FOUND = 404;
+            public const STATUS_CONFLICT = 409;
+            public const STATUS_REQUEST_RANGE_NOT_SATISFIABLE = 416;
+            public const STATUS_TOO_MANY_REQUESTS = 429;
+            public const STATUS_INTERNAL_SERVER_ERROR = 500;
+            public const STATUS_NOT_IMPLEMENTED = 501;
+        }
+    }
+}
+
 namespace OCP\AppFramework\Http {
+    if (!class_exists(Http::class)) {
+        class_alias(\OCP\AppFramework\Http::class, Http::class);
+    }
+
     if (!class_exists(ContentSecurityPolicy::class)) {
         class ContentSecurityPolicy
         {
@@ -478,25 +503,6 @@ namespace OCP\AppFramework\Http {
             {
                 return $this->allowedImgDomains;
             }
-        }
-    }
-
-    if (!class_exists(Http::class)) {
-        class Http
-        {
-            public const STATUS_OK = 200;
-            public const STATUS_CREATED = 201;
-            public const STATUS_NO_CONTENT = 204;
-            public const STATUS_PARTIAL_CONTENT = 206;
-            public const STATUS_BAD_REQUEST = 400;
-            public const STATUS_UNAUTHORIZED = 401;
-            public const STATUS_FORBIDDEN = 403;
-            public const STATUS_NOT_FOUND = 404;
-            public const STATUS_CONFLICT = 409;
-            public const STATUS_REQUESTED_RANGE_NOT_SATISFIABLE = 416;
-            public const STATUS_TOO_MANY_REQUESTS = 429;
-            public const STATUS_INTERNAL_SERVER_ERROR = 500;
-            public const STATUS_NOT_IMPLEMENTED = 501;
         }
     }
 

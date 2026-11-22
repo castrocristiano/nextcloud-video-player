@@ -12,10 +12,10 @@ use OCA\NextcloudVideoPlayer\Service\PlaybackSessionService;
 use OCA\NextcloudVideoPlayer\Service\SafeNodeResolver;
 use OCA\NextcloudVideoPlayer\Service\VideoCatalogService;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\DataResponse;
-use OCP\AppFramework\Http\Http;
 use OCP\AppFramework\Http\ICallbackResponse;
 use OCP\AppFramework\Http\IOutput;
 use OCP\AppFramework\Http\Response;
@@ -82,9 +82,9 @@ class StreamController extends Controller
             $rangeHeader = $this->request->getHeader('Range');
             $rangeInfo = $this->mediaStreamService->resolveByteRange($file->getSize(), $rangeHeader, $mimeType);
 
-            if ($rangeInfo['status'] === Http::STATUS_REQUESTED_RANGE_NOT_SATISFIABLE) {
+            if ($rangeInfo['status'] === Http::STATUS_REQUEST_RANGE_NOT_SATISFIABLE) {
                 $resp = new Response();
-                $resp->setStatus(Http::STATUS_REQUESTED_RANGE_NOT_SATISFIABLE);
+                $resp->setStatus(Http::STATUS_REQUEST_RANGE_NOT_SATISFIABLE);
                 foreach ($rangeInfo['headers'] as $name => $val) {
                     $resp->addHeader($name, $val);
                 }

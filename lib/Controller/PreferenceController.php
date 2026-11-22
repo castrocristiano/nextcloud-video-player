@@ -6,10 +6,10 @@ namespace OCA\NextcloudVideoPlayer\Controller;
 
 use OCA\NextcloudVideoPlayer\Service\PreferenceService;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\DataResponse;
-use OCP\AppFramework\Http\Http;
 use OCP\IL10N;
 use OCP\IRequest;
 use OCP\IUserSession;

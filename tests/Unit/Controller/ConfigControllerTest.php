@@ -7,7 +7,7 @@ namespace OCA\NextcloudVideoPlayer\Tests\Unit\Controller;
 use OCA\NextcloudVideoPlayer\Controller\ConfigController;
 use OCA\NextcloudVideoPlayer\Service\FfmpegService;
 use OCA\NextcloudVideoPlayer\Service\FolderConfigService;
-use OCP\AppFramework\Http\Http;
+use OCP\AppFramework\Http;
 use OCP\Files\NotPermittedException;
 use OCP\IL10N;
 use OCP\IRequest;

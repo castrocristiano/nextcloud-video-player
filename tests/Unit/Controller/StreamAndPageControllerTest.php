@@ -15,7 +15,7 @@ use OCA\NextcloudVideoPlayer\Service\ProgressService;
 use OCA\NextcloudVideoPlayer\Service\SafeNodeResolver;
 use OCA\NextcloudVideoPlayer\Service\SubtitleService;
 use OCA\NextcloudVideoPlayer\Service\VideoCatalogService;
-use OCP\AppFramework\Http\Http;
+use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\ICallbackResponse;
 use OCP\AppFramework\Http\IOutput;
 use OCP\Files\File;

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace OCA\NextcloudVideoPlayer\Service;
 
-use OCP\AppFramework\Http\Http;
+use OCP\AppFramework\Http;
 
 class MediaStreamService
 {
@@ -132,7 +132,7 @@ class MediaStreamService
         $baseHeaders['Content-Length'] = '0';
 
         return [
-            'status' => Http::STATUS_REQUESTED_RANGE_NOT_SATISFIABLE,
+            'status' => Http::STATUS_REQUEST_RANGE_NOT_SATISFIABLE,
             'start' => 0,
             'end' => 0,
             'length' => 0,

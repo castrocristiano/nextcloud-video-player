@@ -8,7 +8,7 @@ use OCA\NextcloudVideoPlayer\Controller\SettingsController;
 use OCA\NextcloudVideoPlayer\Service\FolderConfigService;
 use OCA\NextcloudVideoPlayer\Settings\AdminSection;
 use OCA\NextcloudVideoPlayer\Settings\AdminSettings;
-use OCP\AppFramework\Http\Http;
+use OCP\AppFramework\Http;
 use OCP\IConfig;
 use OCP\IGroupManager;
 use OCP\IL10N;
