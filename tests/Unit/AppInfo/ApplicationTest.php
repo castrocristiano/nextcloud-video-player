@@ -8,25 +8,44 @@ use OCA\NextcloudVideoPlayer\AppInfo\Application;
 use OCA\NextcloudVideoPlayer\Listener\UserLoggedOutListener;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
+use OCP\IContainer;
 use OCP\IL10N;
 use OCP\INavigationManager;
 use OCP\IServerContainer;
 use OCP\IURLGenerator;
+use OCP\L10N\IFactory;
 use OCP\User\Events\UserLoggedOutEvent;
 use PHPUnit\Framework\TestCase;
 
 class ApplicationTest extends TestCase
 {
-    public function testRegisterBindsLogoutListener(): void
+    public function testRegisterBindsL10nServiceAndLogoutListener(): void
     {
         $app = new Application();
+        $capturedServiceFactory = null;
+
         $registrationContext = $this->createMock(IRegistrationContext::class);
+        $registrationContext->expects($this->once())
+            ->method('registerService')
+            ->with(IL10N::class, $this->isType('callable'))
+            ->willReturnCallback(static function (string $name, \Closure $closure) use (&$capturedServiceFactory): void {
+                $capturedServiceFactory = $closure;
+            });
         $registrationContext->expects($this->once())
             ->method('registerEventListener')
             ->with(UserLoggedOutEvent::class, UserLoggedOutListener::class);
 
         $app->register($registrationContext);
         $this->assertSame('nextcloud_video_player', $app->getAppName());
+        $this->assertIsCallable($capturedServiceFactory);
+
+        $l10n = $this->createMock(IL10N::class);
+        $factory = $this->createMock(IFactory::class);
+        $factory->method('get')->with('nextcloud_video_player')->willReturn($l10n);
+        $container = $this->createMock(IContainer::class);
+        $container->method('get')->with(IFactory::class)->willReturn($factory);
+
+        $this->assertSame($l10n, $capturedServiceFactory($container));
     }
 
     public function testBootRegistersLocalizedNavigationEntry(): void
@@ -54,12 +73,17 @@ class ApplicationTest extends TestCase
             ->with('Video Player')
             ->willReturn('Player de Vídeo');
 
+        $l10nFactory = $this->createMock(IFactory::class);
+        $l10nFactory->method('get')
+            ->with('nextcloud_video_player')
+            ->willReturn($l10n);
+
         $container = $this->createMock(IServerContainer::class);
         $container->method('get')
             ->willReturnCallback(static fn (string $id): object => match ($id) {
                 INavigationManager::class => $navManager,
                 IURLGenerator::class => $urlGen,
-                IL10N::class => $l10n,
+                IFactory::class => $l10nFactory,
                 default => throw new \RuntimeException("Unexpected service {$id}"),
             });
 

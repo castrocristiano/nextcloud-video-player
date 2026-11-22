@@ -44,6 +44,18 @@ namespace OCP {
             public function getLanguageCode(): string;
         }
     }
+}
+
+namespace OCP\L10N {
+    if (!interface_exists(IFactory::class)) {
+        interface IFactory
+        {
+            public function get(string $app, ?string $lang = null): \OCP\IL10N;
+        }
+    }
+}
+
+namespace OCP {
 
     if (!interface_exists(IConfig::class)) {
         interface IConfig
@@ -450,6 +462,7 @@ namespace OCP\AppFramework\Bootstrap {
         interface IRegistrationContext
         {
             public function registerEventListener(string $event, string $listener): void;
+            public function registerService(string $name, \Closure $closure): void;
         }
     }
 
