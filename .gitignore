@@ -1,0 +1,49 @@
+# Dependencies
+/vendor/
+/node_modules/
+
+# Build, Package & Coverage Artifacts
+/build/
+/coverage/
+/dist/
+*.tar.gz
+*.zip
+coverage.xml
+clover.xml
+lcov.info
+.phpunit.result.cache
+.phpunit.cache/
+
+# Temporary & Cache Files
+*.tmp
+*.swp
+*.swo
+.tmp/
+tmp/
+.cache/
+
+# Environment Variables & Secrets
+.env
+.env.*
+!.env.example
+*.local.env
+
+# IDEs & OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+# Local SonarQube & Remote Deploy Scripts (kept out of GitHub)
+.sonar/
+.scannerwork/
+.sonar_remote_token
+.sonarlint/
+.current_release_version
+sonar_check.sh
+update_remote.sh
+deploy_remote.sh
+*.local.sh

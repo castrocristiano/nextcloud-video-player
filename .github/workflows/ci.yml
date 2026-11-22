@@ -1,0 +1,318 @@
+name: CI & Auto PR
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+      - 'phase/**'
+      - 'feature/**'
+      - 'hotfix/**'
+      - 'hotfix*'
+  pull_request:
+    branches:
+      - develop
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install OpenSpec CLI and validate specs
+        run: |
+          curl -fsSL https://openspec.dev/cli/install.sh | sh
+          export PATH="$HOME/.local/bin:$PATH"
+          openspec --version
+          openspec validate --all --strict --no-interactive
+
+      - name: Set up PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: dom, xml, mbstring, zip, curl, fileinfo
+          coverage: xdebug
+          tools: composer:v2
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate Nextcloud appinfo/info.xml
+        if: hashFiles('appinfo/info.xml') != ''
+        run: |
+          xmllint --noout appinfo/info.xml
+          echo "✅ appinfo/info.xml é XML bem-formado."
+
+      - name: PHP Syntax Lint
+        run: |
+          PHP_FILES=$(find appinfo lib tests -type f -name '*.php' 2>/dev/null || true)
+          if [ -n "$PHP_FILES" ]; then
+            echo "$PHP_FILES" | xargs -n1 php -l
+          else
+            echo "ℹ️ Nenhum arquivo PHP encontrado ainda — etapa de lint PHP pulada."
+          fi
+
+      - name: Install Composer dependencies & run PHP Static Analysis + Tests
+        if: hashFiles('composer.json') != ''
+        run: |
+          composer install --no-interaction --prefer-dist
+          if [ -x vendor/bin/phpstan ]; then
+            vendor/bin/phpstan analyse --no-progress
+          fi
+          mkdir -p build/logs
+          if [ -x vendor/bin/phpunit ]; then
+            XDEBUG_MODE=coverage vendor/bin/phpunit --coverage-clover build/logs/clover.xml
+          fi
+
+      - name: Install npm dependencies & run JS Lint + Tests
+        if: hashFiles('package.json') != ''
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+          npm run lint
+          npm run test:coverage
+
+      - name: Upload Coverage Report Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          if-no-files-found: ignore
+          path: |
+            build/logs/clover.xml
+            coverage/lcov.info
+          retention-days: 1
+
+  # Job dedicado do SonarQube rodando em container no CI (mesmo padrão do projeto contas)
+  sonarqube:
+    name: SonarQube Scan & Quality Gate
+    needs: [build-and-test]
+    runs-on: ubuntu-latest
+    services:
+      sonarqube:
+        image: sonarqube:10.5-community
+        ports:
+          - 9000:9000
+        env:
+          SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
+        options: >-
+          --health-cmd "curl -s -f http://localhost:9000/api/system/status | grep -q '\"status\":\"UP\"'"
+          --health-interval 10s
+          --health-timeout 10s
+          --health-retries 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download Coverage Report Artifacts
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: coverage-report
+
+      - name: Run SonarQube Scan & Quality Gate
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: "http://localhost:9000"
+        run: |
+          if [ -z "${SONAR_TOKEN:-}" ]; then
+            echo "Gerando token temporário no SonarQube local do CI..."
+            SONAR_TOKEN=$(curl -s -u admin:admin -X POST "http://localhost:9000/api/user_tokens/generate" -d "name=ci-token-${GITHUB_RUN_ID}" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+          fi
+
+          docker run --rm \
+            --network host \
+            -e SONAR_HOST_URL="http://localhost:9000" \
+            -e SONAR_TOKEN="${SONAR_TOKEN}" \
+            -v "${GITHUB_WORKSPACE}:/usr/src" \
+            sonarsource/sonar-scanner-cli:latest \
+            -Dsonar.qualitygate.wait=true
+
+  # Abre PR de branch de fase ou feature → develop (ou main se develop não existir no remoto)
+  auto-pr-to-develop:
+    name: Open PR to develop
+    needs: [build-and-test, sonarqube]
+    if: github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/phase/') || startsWith(github.ref, 'refs/heads/feature/'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check or create Pull Request to develop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH="${GITHUB_REF#refs/heads/}"
+          TARGET_BASE="develop"
+          if ! git show-ref --verify --quiet refs/remotes/origin/develop; then
+            TARGET_BASE="main"
+          fi
+
+          COMMITS_AHEAD=$(git log "origin/${TARGET_BASE}..HEAD" --oneline 2>/dev/null || true)
+          if [ -z "$COMMITS_AHEAD" ]; then
+            echo "Nenhum commit novo entre $BRANCH e $TARGET_BASE. PR não necessário."
+            exit 0
+          fi
+
+          EXISTING_PR=$(gh pr list --base "$TARGET_BASE" --head "$BRANCH" --state open --json number --jq '.[0].number' 2>/dev/null || echo "")
+          if [ -n "$EXISTING_PR" ]; then
+            echo "Pull Request #$EXISTING_PR já existe de $BRANCH para $TARGET_BASE."
+          else
+            echo "Criando Pull Request de $BRANCH para $TARGET_BASE..."
+            if ! gh pr create \
+              --base "$TARGET_BASE" \
+              --head "$BRANCH" \
+              --title "feat: $BRANCH" \
+              --body $'### Pull Request Automatizado\n\nEste PR foi aberto automaticamente pela esteira de CI após a conclusão bem-sucedida das validações OpenSpec, lint, testes unitários e SonarQube no branch `'"$BRANCH"$'`.\n\n#### Verificações Realizadas\n- [x] Validação estrita do OpenSpec (`openspec validate --all --strict`)\n- [x] Lint e análise estática (PHP / ESLint)\n- [x] Execução de testes unitários com cobertura (PHPUnit / Vitest)\n- [x] Quality Gate do SonarQube aprovado'; then
+              echo "::warning::Não foi possível criar o PR automaticamente via GITHUB_TOKEN. Ative 'Allow GitHub Actions to create and approve pull requests' em https://github.com/${GITHUB_REPOSITORY}/settings/actions ou abra manualmente em https://github.com/${GITHUB_REPOSITORY}/compare/${TARGET_BASE}...${BRANCH}?expand=1"
+            fi
+          fi
+
+  # Abre PR de develop ou hotfix* → main
+  auto-pr-to-main:
+    name: Open PR to main
+    needs: [build-and-test, sonarqube]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/heads/hotfix'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check or create Pull Request to main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH="${GITHUB_REF#refs/heads/}"
+          COMMITS_AHEAD=$(git log origin/main..HEAD --oneline 2>/dev/null || git log main..HEAD --oneline 2>/dev/null || true)
+          if [ -z "$COMMITS_AHEAD" ]; then
+            echo "Nenhum commit novo entre $BRANCH e main. PR não necessário."
+            exit 0
+          fi
+
+          EXISTING_PR=$(gh pr list --base main --head "$BRANCH" --state open --json number --jq '.[0].number' 2>/dev/null || echo "")
+          if [ -n "$EXISTING_PR" ]; then
+            echo "Pull Request #$EXISTING_PR já existe de $BRANCH para main."
+          else
+            if [[ "$BRANCH" == hotfix* ]]; then
+              PR_TITLE="hotfix: $BRANCH"
+              PR_BODY=$'### Pull Request Automatizado (Hotfix → main)\n\nEste PR de **hotfix** foi aberto automaticamente pela esteira de CI diretamente para a `main` após aprovação no build, testes e SonarQube no branch `'"$BRANCH"$'`.\nAo ser mergeado na `main`, o job `release-on-main` gerará automaticamente uma nova Release.'
+            else
+              PR_TITLE="chore: merge develop into main"
+              PR_BODY=$'### Pull Request Automatizado\n\nEste PR foi aberto automaticamente pela esteira de CI após a conclusão bem-sucedida do build, testes e SonarQube no branch `develop`.'
+            fi
+            if ! gh pr create \
+              --base main \
+              --head "$BRANCH" \
+              --title "$PR_TITLE" \
+              --body "$PR_BODY"; then
+              echo "::warning::Não foi possível criar o PR automaticamente via GITHUB_TOKEN. Ative 'Allow GitHub Actions to create and approve pull requests' em https://github.com/${GITHUB_REPOSITORY}/settings/actions ou abra manualmente em https://github.com/${GITHUB_REPOSITORY}/compare/main...${BRANCH}?expand=1"
+            fi
+          fi
+
+  # Cria Release no GitHub (com pacote instalável do app Nextcloud) ao fazer merge na main
+  release-on-main:
+    name: Create GitHub Release
+    needs: [build-and-test, sonarqube]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version tag, package Nextcloud app and create Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PROJECT_VERSION="0.1.0"
+          if [ -f appinfo/info.xml ]; then
+            EXTRACTED_VERSION=$(sed -n 's/.*<version>\([^<]*\)<\/version>.*/\1/p' appinfo/info.xml | head -n 1)
+            if [ -n "$EXTRACTED_VERSION" ]; then
+              PROJECT_VERSION="$EXTRACTED_VERSION"
+            fi
+          fi
+
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -n "$LAST_TAG" ]; then
+            COMMIT_LOGS=$(git log "${LAST_TAG}..HEAD" --oneline)
+          else
+            COMMIT_LOGS=$(git log -n 20 --oneline)
+          fi
+
+          IS_MAJOR=false
+          if echo "$COMMIT_LOGS" | grep -Ei "(\b(feat|fix|refactor|perf|chore)\!:|BREAKING[ -]CHANGE|\[major\]|breaking)" >/dev/null; then
+            IS_MAJOR=true
+          fi
+
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$PROJECT_VERSION"
+          MAJOR=${MAJOR:-0}
+          MINOR=${MINOR:-1}
+          PATCH=${PATCH:-0}
+
+          if [ "$IS_MAJOR" = true ]; then
+            echo "🚨 Mudança estrutural/Breaking change detectada! Incrementando versão MAJOR."
+            NEW_MAJOR=$((MAJOR + 1))
+            PROJECT_VERSION="${NEW_MAJOR}.0.0"
+            TAG="v${PROJECT_VERSION}"
+            if [ -f appinfo/info.xml ]; then
+              sed -i -E "s|<version>[^<]*</version>|<version>${PROJECT_VERSION}</version>|" appinfo/info.xml
+              git config user.name "github-actions[bot]"
+              git config user.email "github-actions[bot]@users.noreply.github.com"
+              git add appinfo/info.xml
+              git commit -m "chore(release): bump version to $PROJECT_VERSION [skip ci]" || true
+              git push origin main || true
+            fi
+          else
+            TAG="v${PROJECT_VERSION}"
+            if git rev-parse "$TAG" >/dev/null 2>&1; then
+              TAG="v${PROJECT_VERSION}-${{ github.run_number }}"
+            fi
+          fi
+
+          RELEASE_ASSET=""
+          if [ -f appinfo/info.xml ]; then
+            APP_ID="nextcloud_video_player"
+            PKG_DIR=$(mktemp -d)
+            mkdir -p "${PKG_DIR}/${APP_ID}"
+            for item in appinfo lib js css templates img l10n LICENSE README.md; do
+              if [ -e "$item" ]; then
+                cp -r "$item" "${PKG_DIR}/${APP_ID}/"
+              fi
+            done
+            RELEASE_ASSET="${APP_ID}-${TAG}.tar.gz"
+            tar -czf "$RELEASE_ASSET" -C "$PKG_DIR" "$APP_ID"
+            rm -rf "$PKG_DIR"
+          fi
+
+          echo "Criando tag e release para: $TAG"
+          if [ -n "$RELEASE_ASSET" ] && [ -f "$RELEASE_ASSET" ]; then
+            gh release create "$TAG" \
+              "$RELEASE_ASSET" \
+              --target main \
+              --title "Release $TAG" \
+              --generate-notes
+          else
+            gh release create "$TAG" \
+              --target main \
+              --title "Release $TAG" \
+              --generate-notes
+          fi

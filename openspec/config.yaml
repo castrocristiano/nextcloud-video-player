@@ -1,0 +1,53 @@
+schema: spec-driven
+
+context: |
+  Language: pt-BR
+  All OpenSpec artifacts (proposal, specs, design, tasks) and documentation MUST be written in Brazilian Portuguese (pt-BR).
+  Keep OpenSpec structural headings (## Why, ## What Changes, ## Capabilities, ## Impact, ## ADDED Requirements, ### Requirement:, #### Scenario:) and RFC 2119 keywords (SHALL, MUST, SHOULD, MAY) in English to preserve OpenSpec CLI validation compatibility.
+  All source code (PHP, JavaScript, CSS), identifiers, classes, methods, routes, comments, docblocks, and automated test names MUST be written in English (en-US).
+
+  Project: nextcloud-video-player (Nextcloud App ID: `nextcloud_video_player`)
+  Reference project: `castrocristiano/lan-video-player` (local LAN video player with read-only media browsing, HTTP Range streaming, optional FFmpeg transcoding/thumbnails, YouTube-style fullscreen player, keyboard/TV shortcuts, playback speed, subtitles .vtt/.srt, audio track selector, resume progress, autoplay next countdown, search and sort).
+
+  Target Platform & Stack:
+  - Nextcloud 30–32 (PHP 8.2+, strict_types=1, `appinfo/info.xml`, `lib/AppInfo/Application.php`).
+  - Nextcloud Native APIs: `OCP\Files\IRootFolder`, `OCP\Files\Node`, `OCP\Files\File`, `OCP\Files\Folder`, `OCP\IConfig`, `OCP\IUserSession`, `OCP\AppFramework\Controller`, `OCP\AppFramework\Http\StreamResponse` / custom Range streaming, `OCP\Security\CSP\ContentSecurityPolicy`.
+  - Frontend: Modular Vanilla JavaScript (ES modules) + CSS reusing Nextcloud CSS variables (`--color-main-background`, `--color-main-text`, `--color-primary-element`, etc.) for seamless light/dark theme integration, directly porting and adapting the proven UI and player engine from `lan-video-player`.
+  - Folder Configuration Model (Hybrid):
+    1. Global/shared pre-configured folders defined by Nextcloud Admin (via Admin Settings / `IConfig` app value), respecting each user's native Nextcloud read permissions (including Shared folders and External Storage mounts).
+    2. Personal folders selected by each user from their own Nextcloud file tree (stored per-user via `IConfig` user value).
+  - Non-Negotiable Constraints:
+    - Strictly read-only over all configured media folders: NEVER create, modify, rename, or delete files inside user/admin media folders (thumbnails, preferences, and playback progress live outside media folders).
+    - 100% offline / zero external CDNs or telemetry: comply strictly with Nextcloud Content Security Policy (`default-src 'self'`).
+    - Enforce Nextcloud authentication, CSRF protection, user folder isolation, and path traversal defense on every endpoint.
+    - License: GNU AGPL v3.0 (compatible with Nextcloud and `lan-video-player`).
+
+  Quality & CI/CD Standards (following `castrocristiano/contas` pattern):
+  - Gitflow branches: `feature/*` / `phase/*` -> `develop` -> `main`; `hotfix/*` -> `main` -> automatic GitHub Release with packaged Nextcloud app tarball.
+  - Automated checks: `openspec validate --all --strict`, PHP syntax lint (`php -l`), PHPStan static analysis, PHPUnit with Clover coverage (`build/logs/clover.xml`), ESLint, Vitest with LCOV coverage (`coverage/lcov.info`), and SonarQube Community Quality Gate.
+
+rules:
+  proposal:
+    - Escrever o texto em Português do Brasil (pt-BR), preservando cabeçalhos estruturais do OpenSpec em inglês.
+    - Explicitar claramente o que está dentro e fora de escopo (Non-goals / Out of Scope).
+    - Referenciar aderência aos princípios de somente-leitura, permissões nativas do Nextcloud e compatibilidade 100% offline/CSP.
+  specs:
+    - Usar cenários verificáveis no formato GIVEN / WHEN / THEN em Português do Brasil mantendo `### Requirement:` e `#### Scenario:` e verbos normativos (`SHALL`/`MUST`) em inglês quando exigido pelo OpenSpec.
+    - Incluir cenários de borda para segurança (path traversal, acesso sem permissão no Nextcloud), pastas vazias/removidas e formatos não suportados.
+  design:
+    - Documentar arquitetura backend PHP (Controllers, Services, Storage/Config), rotas HTTP/REST, estratégia de Range streaming e transcodificação opcional via FFmpeg, e arquitetura frontend Vanilla JS/CSS integrada ao Nextcloud.
+    - Registrar decisões técnicas e trade-offs explícitos.
+  tasks:
+    - Dividir as tarefas em passos granulares, verificáveis e ordenados por dependência (scaffolding do app, backend PHP + testes PHPUnit, frontend JS/CSS + testes Vitest, configurações Admin/Usuário, validação de qualidade e SonarQube).
+    - Incluir tarefas explícitas de testes automatizados (PHPUnit e Vitest) e verificação de cobertura para o Quality Gate do SonarQube.
+
+operations:
+  apply:
+    guidance:
+      - Escrever todo código-fonte (PHP, JS, CSS) e testes em inglês (en-US) com `declare(strict_types=1);` em PHP.
+      - Validar testes unitários, linters e `openspec validate --all --strict` antes de concluir cada etapa.
+      - Manter commits seguindo Conventional Commits com descrição em português.
+  archive:
+    guidance:
+      - Confirmar que todas as tarefas de `tasks.md` estão concluídas e que os testes e `openspec validate --all --strict` passaram antes de arquivar.
+      - Resumir em português as capacidades sincronizadas em `openspec/specs/`.
