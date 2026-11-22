@@ -405,7 +405,32 @@ namespace OCP\Settings {
     }
 }
 
-namespace OCP\Security\CSP {
+namespace OCP\AppFramework\Bootstrap {
+    if (!interface_exists(IRegistrationContext::class)) {
+        interface IRegistrationContext
+        {
+            public function registerEventListener(string $event, string $listener): void;
+            public function registerService(string $name, \Closure $closure): void;
+        }
+    }
+
+    if (!interface_exists(IBootContext::class)) {
+        interface IBootContext
+        {
+            public function getServerContainer(): \OCP\IServerContainer;
+        }
+    }
+
+    if (!interface_exists(IBootstrap::class)) {
+        interface IBootstrap
+        {
+            public function register(IRegistrationContext $context): void;
+            public function boot(IBootContext $context): void;
+        }
+    }
+}
+
+namespace OCP\AppFramework\Http {
     if (!class_exists(ContentSecurityPolicy::class)) {
         class ContentSecurityPolicy
         {
@@ -455,34 +480,7 @@ namespace OCP\Security\CSP {
             }
         }
     }
-}
 
-namespace OCP\AppFramework\Bootstrap {
-    if (!interface_exists(IRegistrationContext::class)) {
-        interface IRegistrationContext
-        {
-            public function registerEventListener(string $event, string $listener): void;
-            public function registerService(string $name, \Closure $closure): void;
-        }
-    }
-
-    if (!interface_exists(IBootContext::class)) {
-        interface IBootContext
-        {
-            public function getServerContainer(): \OCP\IServerContainer;
-        }
-    }
-
-    if (!interface_exists(IBootstrap::class)) {
-        interface IBootstrap
-        {
-            public function register(IRegistrationContext $context): void;
-            public function boot(IBootContext $context): void;
-        }
-    }
-}
-
-namespace OCP\AppFramework\Http {
     if (!class_exists(Http::class)) {
         class Http
         {
@@ -522,7 +520,7 @@ namespace OCP\AppFramework\Http {
             private int $status = Http::STATUS_OK;
             /** @var array<string, string> */
             private array $headers = [];
-            private ?\OCP\Security\CSP\ContentSecurityPolicy $csp = null;
+            private ?ContentSecurityPolicy $csp = null;
 
             public function setStatus(int $status): self
             {
@@ -547,13 +545,13 @@ namespace OCP\AppFramework\Http {
                 return $this->headers;
             }
 
-            public function setContentSecurityPolicy(\OCP\Security\CSP\ContentSecurityPolicy $csp): self
+            public function setContentSecurityPolicy(ContentSecurityPolicy $csp): self
             {
                 $this->csp = $csp;
                 return $this;
             }
 
-            public function getContentSecurityPolicy(): ?\OCP\Security\CSP\ContentSecurityPolicy
+            public function getContentSecurityPolicy(): ?ContentSecurityPolicy
             {
                 return $this->csp;
             }
