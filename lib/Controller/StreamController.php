@@ -207,6 +207,14 @@ class StreamController extends Controller
                 ]);
             }
 
+            $this->phpSession->close();
+
+            $stream = $file->fopen('r');
+            if (is_resource($stream)) {
+                $info = $this->ffmpegService->probeStreamHeader($stream);
+                return new DataResponse($info);
+            }
+
             $info = $this->ffmpegService->probeLocalFile($file->getInternalPath());
             return new DataResponse($info);
         } catch (InvalidArgumentException $e) {

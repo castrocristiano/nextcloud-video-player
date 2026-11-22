@@ -67,7 +67,97 @@ class FfmpegService
             throw new RuntimeException('Failed to probe media file with ffprobe');
         }
 
-        $decoded = json_decode($res['stdout'], true);
+        return $this->parseFfprobeJsonOutput($res['stdout']);
+    }
+
+    /**
+     * Probes video duration and stream codecs by reading only the initial header bytes from a PHP stream resource.
+     *
+     * @param resource $inputStream
+     * @return array{duration: float, videoCodec: ?string, audioCodec: ?string, canTranscode: bool}
+     */
+    public function probeStreamHeader($inputStream, int $headerBytes = 524288): array
+    {
+        if (!$this->isTranscodingEnabled()) {
+            throw new RuntimeException('FFmpeg transcoding is disabled by administrator');
+        }
+
+        $buffer = '';
+        $maxBytes = max(65536, $headerBytes);
+        try {
+            while (strlen($buffer) < $maxBytes && !@feof($inputStream)) {
+                $chunk = @fread($inputStream, min(65536, $maxBytes - strlen($buffer)));
+                if ($chunk === false || $chunk === '') {
+                    break;
+                }
+                $buffer .= $chunk;
+            }
+        } finally {
+            if (is_resource($inputStream)) {
+                @fclose($inputStream);
+            }
+        }
+
+        if ($buffer === '') {
+            throw new RuntimeException('Unable to read media header for probing');
+        }
+
+        if ($this->commandRunner !== null) {
+            $res = ($this->commandRunner)([
+                $this->getFfprobeBinary(),
+                '-v',
+                'quiet',
+                '-print_format',
+                'json',
+                '-show_format',
+                '-show_streams',
+                'pipe:0',
+            ]);
+            return $this->parseFfprobeJsonOutput($res['stdout']);
+        }
+
+        $cmd = [
+            $this->getFfprobeBinary(),
+            '-v',
+            'quiet',
+            '-print_format',
+            'json',
+            '-show_format',
+            '-show_streams',
+            'pipe:0',
+        ];
+
+        $descriptors = [
+            0 => ['pipe', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ];
+
+        $process = @proc_open($cmd, $descriptors, $pipes);
+        if (!is_resource($process)) {
+            throw new RuntimeException('Failed to start ffprobe process');
+        }
+
+        @fwrite($pipes[0], $buffer);
+        @fclose($pipes[0]);
+        $stdout = (string) stream_get_contents($pipes[1]);
+        @fclose($pipes[1]);
+        @fclose($pipes[2]);
+        @proc_close($process);
+
+        if (trim($stdout) === '') {
+            throw new RuntimeException('Failed to probe media stream with ffprobe');
+        }
+
+        return $this->parseFfprobeJsonOutput($stdout);
+    }
+
+    /**
+     * @return array{duration: float, videoCodec: ?string, audioCodec: ?string, canTranscode: bool}
+     */
+    private function parseFfprobeJsonOutput(string $jsonOutput): array
+    {
+        $decoded = json_decode($jsonOutput, true);
         if (!is_array($decoded)) {
             throw new RuntimeException('Invalid ffprobe JSON output');
         }
@@ -87,6 +177,9 @@ class FfmpegService
                     $videoCodec = $codec;
                 } elseif ($type === 'audio' && $audioCodec === null) {
                     $audioCodec = $codec;
+                }
+                if ($duration <= 0.0 && isset($stream['duration']) && is_numeric($stream['duration'])) {
+                    $duration = max($duration, (float) $stream['duration']);
                 }
             }
         }

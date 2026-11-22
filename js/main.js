@@ -1046,16 +1046,27 @@ class VideoPlayerController {
 
     dom.videoElement.addEventListener("loadedmetadata", () => {
       const dur = Number(dom.videoElement.duration);
-      if (Number.isFinite(dur) && dur > 0) {
-        state.totalDuration = dur;
-        if (dom.seekSlider) {
-          dom.seekSlider.max = String(Math.floor(dur));
-        }
-        if (dom.totalDurationLabel) {
-          dom.totalDurationLabel.textContent = formatDuration(dur);
-        }
+      if (Number.isFinite(dur) && dur > 0 && !state.isTranscodedStream) {
+        this.applyTotalDuration(dur);
+      } else if (
+        Number.isFinite(dur) &&
+        dur > 0 &&
+        state.totalDuration <= 0
+      ) {
+        this.applyTotalDuration(dur);
       }
       this.populateAudioTracks();
+    });
+
+    dom.videoElement.addEventListener("durationchange", () => {
+      const dur = Number(dom.videoElement.duration);
+      if (Number.isFinite(dur) && dur > 0 && !state.isTranscodedStream) {
+        this.applyTotalDuration(dur);
+      }
+    });
+
+    dom.videoElement.addEventListener("dblclick", () => {
+      this.toggleFullscreen();
     });
 
     dom.videoElement.addEventListener("timeupdate", () => {
@@ -1125,10 +1136,26 @@ class VideoPlayerController {
     state.totalDuration = 0;
     state.triedTranscodeFallback = false;
 
+    if (dom.currentTimeLabel) {
+      dom.currentTimeLabel.textContent = "00:00";
+    }
+    if (dom.totalDurationLabel) {
+      dom.totalDurationLabel.textContent = "00:00";
+    }
+    if (dom.seekSlider) {
+      dom.seekSlider.value = "0";
+      dom.seekSlider.max = "100";
+    }
+
     const useTranscodeImmediately =
       Boolean(state.capabilities?.ffmpegEnabled) &&
       requiresImmediateTranscode(video.name);
     state.isTranscodedStream = useTranscodeImmediately;
+
+    const savedProgress = getVideoProgress(state, video);
+    if (savedProgress && Number(savedProgress.duration) > 0) {
+      this.applyTotalDuration(Number(savedProgress.duration));
+    }
 
     dom.playerErrorBanner?.classList.add("hidden");
     dom.resumeBanner?.classList.add("hidden");
@@ -1147,10 +1174,33 @@ class VideoPlayerController {
       dom.nextVideoBtn.disabled = index >= videos.length - 1;
     }
 
+    if (state.capabilities?.ffmpegEnabled) {
+      this.probeVideoDuration(video);
+    }
+
     // Start tracked playback session on the server
     const streamMode = useTranscodeImmediately ? "transcode" : "direct";
     const sessionResp = await this.sessionManager.startSession(video, streamMode);
     const sessionToken = sessionResp.sessionToken;
+
+    let initialStartOffset = 0;
+    if (
+      savedProgress &&
+      !savedProgress.completed &&
+      savedProgress.currentTime > 3
+    ) {
+      if (useTranscodeImmediately) {
+        initialStartOffset = Math.floor(savedProgress.currentTime);
+        state.transcodeBaseOffset = initialStartOffset;
+      }
+      if (dom.resumeBanner && dom.resumeBannerText) {
+        dom.resumeBannerText.textContent = t(
+          "Resuming playback from {time}.",
+          { time: formatDuration(savedProgress.currentTime) }
+        );
+        dom.resumeBanner.classList.remove("hidden");
+      }
+    }
 
     const streamParams = {
       path: video.relativePath,
@@ -1158,6 +1208,9 @@ class VideoPlayerController {
     };
     if (useTranscodeImmediately) {
       streamParams.transcode = "1";
+      if (initialStartOffset > 0) {
+        streamParams.start = String(initialStartOffset);
+      }
     }
 
     const streamUrl = buildAppUrl(
@@ -1172,7 +1225,6 @@ class VideoPlayerController {
     dom.videoElement.volume = state.prefs.volume ?? 1.0;
     dom.videoElement.muted = Boolean(state.prefs.muted);
 
-    const savedProgress = getVideoProgress(state, video);
     if (
       savedProgress &&
       !savedProgress.completed &&
@@ -1180,13 +1232,6 @@ class VideoPlayerController {
       !useTranscodeImmediately
     ) {
       dom.videoElement.currentTime = savedProgress.currentTime;
-      if (dom.resumeBanner && dom.resumeBannerText) {
-        dom.resumeBannerText.textContent = t(
-          "Resuming playback from {time}.",
-          { time: formatDuration(savedProgress.currentTime) }
-        );
-        dom.resumeBanner.classList.remove("hidden");
-      }
     }
 
     this.sessionManager.startHeartbeatLoop(() => ({
@@ -1211,11 +1256,47 @@ class VideoPlayerController {
     }
   }
 
+  applyTotalDuration(durationSeconds) {
+    const dur = Number(durationSeconds);
+    if (!Number.isFinite(dur) || dur <= 0) {
+      return;
+    }
+    this.state.totalDuration = dur;
+    if (this.dom.seekSlider) {
+      this.dom.seekSlider.max = String(Math.floor(dur));
+    }
+    if (this.dom.totalDurationLabel) {
+      this.dom.totalDurationLabel.textContent = formatDuration(dur);
+    }
+  }
+
+  async probeVideoDuration(video) {
+    try {
+      const info = await apiGet(
+        `/api/v1/probe/${encodeURIComponent(video.rootId)}`,
+        { path: video.relativePath }
+      );
+      if (
+        this.state.currentVideo &&
+        this.state.currentVideo.relativePath === video.relativePath &&
+        Number(info?.duration) > 0
+      ) {
+        this.applyTotalDuration(Number(info.duration));
+      }
+    } catch {
+      // Fallback to loadedmetadata duration
+    }
+  }
+
   async switchToTranscodedStream(video, startOffsetSeconds = 0) {
     const { dom, state } = this;
     state.isTranscodedStream = true;
-    state.transcodeBaseOffset = Math.max(0, Number(startOffsetSeconds) || 0);
+    state.transcodeBaseOffset = Math.max(0, Math.floor(Number(startOffsetSeconds) || 0));
     dom.playerErrorBanner?.classList.add("hidden");
+
+    if (state.totalDuration <= 0 && state.capabilities?.ffmpegEnabled) {
+      this.probeVideoDuration(video);
+    }
 
     const sessionResp = await this.sessionManager.startSession(video, "transcode");
     const streamUrl = buildAppUrl(
@@ -1225,7 +1306,7 @@ class VideoPlayerController {
         sessionToken: sessionResp.sessionToken,
         transcode: "1",
         ...(state.transcodeBaseOffset > 0
-          ? { start: state.transcodeBaseOffset }
+          ? { start: String(state.transcodeBaseOffset) }
           : {}),
       }
     );
@@ -1354,7 +1435,9 @@ class VideoPlayerController {
   }
 
   seekRelative(deltaSeconds) {
-    const cur = Number(this.dom.videoElement?.currentTime) || 0;
+    const cur =
+      (Number(this.dom.videoElement?.currentTime) || 0) +
+      (this.state.transcodeBaseOffset || 0);
     this.seekToSeconds(Math.max(0, cur + deltaSeconds));
   }
 
@@ -1362,7 +1445,15 @@ class VideoPlayerController {
     if (!this.dom.videoElement) {
       return;
     }
-    const clamped = Math.max(0, Number(targetSeconds) || 0);
+    const maxDur = this.state.totalDuration;
+    let clamped = Math.max(0, Number(targetSeconds) || 0);
+    if (Number.isFinite(maxDur) && maxDur > 0) {
+      clamped = Math.min(maxDur, clamped);
+    }
+    if (this.state.isTranscodedStream && this.state.currentVideo) {
+      this.switchToTranscodedStream(this.state.currentVideo, clamped);
+      return;
+    }
     this.dom.videoElement.currentTime = clamped;
   }
 
@@ -1378,35 +1469,53 @@ class VideoPlayerController {
 
   toggleFullscreen() {
     const dialog = this.dom.playerDialog;
+    const modal = this.dom.playerModal;
     if (!dialog) {
       return;
     }
-    if (document.fullscreenElement) {
-      document.exitFullscreen?.().catch(() => {});
+    const fsTarget = modal || dialog;
+    const isCurrentlyFs =
+      Boolean(document.fullscreenElement) ||
+      dialog.classList.contains("is-fullscreen");
+
+    if (isCurrentlyFs) {
+      if (document.fullscreenElement) {
+        document.exitFullscreen?.().catch(() => {});
+      }
       dialog.classList.remove("is-fullscreen", "fs-controls-hidden");
-    } else if (typeof dialog.requestFullscreen === "function") {
-      dialog.requestFullscreen().catch(() => {});
-      dialog.classList.add("is-fullscreen");
-      this.scheduleFullscreenAutoHide();
+      modal?.classList.remove("is-fullscreen");
     } else {
-      dialog.classList.toggle("is-fullscreen");
+      dialog.classList.add("is-fullscreen");
+      modal?.classList.add("is-fullscreen");
+      if (typeof fsTarget.requestFullscreen === "function") {
+        fsTarget.requestFullscreen().catch(() => {});
+      } else if (typeof dialog.requestFullscreen === "function") {
+        dialog.requestFullscreen().catch(() => {});
+      }
+      this.scheduleFullscreenAutoHide();
     }
   }
 
   handleFullscreenChange() {
     const dialog = this.dom.playerDialog;
+    const modal = this.dom.playerModal;
     if (!dialog) {
       return;
     }
-    if (document.fullscreenElement === dialog) {
+    if (
+      document.fullscreenElement === dialog ||
+      (modal && document.fullscreenElement === modal)
+    ) {
       dialog.classList.add("is-fullscreen");
+      modal?.classList.add("is-fullscreen");
       this.scheduleFullscreenAutoHide();
-    } else {
+    } else if (!document.fullscreenElement) {
       if (this.fsHideTimer) {
         clearTimeout(this.fsHideTimer);
         this.fsHideTimer = null;
       }
       dialog.classList.remove("is-fullscreen", "fs-controls-hidden");
+      modal?.classList.remove("is-fullscreen");
     }
   }
 

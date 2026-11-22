@@ -19,7 +19,7 @@ use OCP\User\Events\UserLoggedOutEvent;
 class Application extends App implements IBootstrap
 {
     public const APP_ID = 'nextcloud_video_player';
-    public const APP_VERSION = '0.1.2';
+    public const APP_VERSION = '0.1.3';
 
     public function __construct(array $urlParams = [])
     {
