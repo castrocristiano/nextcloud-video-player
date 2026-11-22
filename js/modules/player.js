@@ -505,6 +505,25 @@ export class VideoPlayerController {
     }
 
     const sessionResp = await this.sessionManager.startSession(video, "transcode");
+    this.sessionManager.startHeartbeatLoop(() => ({
+      currentTime:
+        (Number(dom.videoElement.currentTime) || 0) +
+        (state.transcodeBaseOffset || 0),
+      duration:
+        state.totalDuration || Number(dom.videoElement.duration) || 0,
+      status: dom.videoElement.paused ? "paused" : "active",
+      completed: false,
+    }));
+    if (state.totalDuration > 0) {
+      this.sessionManager
+        .sendHeartbeat({
+          currentTime: state.transcodeBaseOffset,
+          duration: state.totalDuration,
+          status: dom.videoElement.paused ? "paused" : "active",
+          completed: false,
+        })
+        .catch(() => {});
+    }
     const streamUrl = buildAppUrl(
       `/api/v1/stream/${encodeURIComponent(video.rootId)}`,
       {
