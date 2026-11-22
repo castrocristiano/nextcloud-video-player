@@ -83,13 +83,38 @@ class StreamController extends Controller
             $this->phpSession->close();
 
             if ($transcodeRequested && $this->ffmpegService->isTranscodingEnabled()) {
+                $fileSize = (int) $file->getSize();
+                $mtime = (int) $file->getMTime();
+                $cachePrefix = 'blk_' . hash('sha256', $rootId . '|' . $resolved['relativePath'] . '|' . $fileSize . '|' . $mtime);
+                $cacheDir = rtrim(sys_get_temp_dir(), '/') . '/ncvp_transcode_cache';
+                $transcodeKey = hash('sha256', $cachePrefix . '|' . (int) round($startSeconds));
+                $cachedMp4 = $cacheDir . '/' . $transcodeKey . '.mp4';
+
+                if (is_file($cachedMp4)) {
+                    $cachedSize = @filesize($cachedMp4);
+                    if (is_int($cachedSize) && $cachedSize > 0) {
+                        @touch($cachedMp4);
+                        $rangeInfo = $this->mediaStreamService->resolveByteRange(
+                            $cachedSize,
+                            $this->request->getHeader('Range'),
+                            'video/mp4'
+                        );
+                        if ($rangeInfo['status'] === Http::STATUS_REQUEST_RANGE_NOT_SATISFIABLE) {
+                            return $this->buildRangeUnsatisfiableResponse($rangeInfo);
+                        }
+                        $cachedStream = @fopen($cachedMp4, 'rb');
+                        if (is_resource($cachedStream)) {
+                            return $this->buildRangeStreamResponse($cachedStream, $rangeInfo);
+                        }
+                    }
+                }
+
                 $stream = $file->fopen('r');
                 if (!is_resource($stream)) {
                     return $this->errorResponse($this->l10n->t('Unable to open video file stream'), Http::STATUS_INTERNAL_SERVER_ERROR);
                 }
                 $ffmpegService = $this->ffmpegService;
-                $fileSize = (int) $file->getSize();
-                return new class($stream, $startSeconds, $ffmpegService, $fileSize) extends Response implements ICallbackResponse {
+                return new class($stream, $startSeconds, $ffmpegService, $fileSize, $cachePrefix, $cacheDir, $cachedMp4) extends Response implements ICallbackResponse {
                     /**
                      * @param resource $stream
                      */
@@ -97,7 +122,10 @@ class StreamController extends Controller
                         private $stream,
                         private float $startSeconds,
                         private FfmpegService $ffmpegService,
-                        private int $fileSize
+                        private int $fileSize,
+                        private string $cachePrefix,
+                        private string $cacheDir,
+                        private string $cachedMp4
                     ) {
                         $this->setStatus(Http::STATUS_OK);
                         $this->addHeader('Content-Type', 'video/mp4');
@@ -107,18 +135,46 @@ class StreamController extends Controller
 
                     public function callback(IOutput $output): void
                     {
+                        if (!is_dir($this->cacheDir)) {
+                            @mkdir($this->cacheDir, 0770, true);
+                        }
+                        $partMp4 = $this->cachedMp4 . '.' . bin2hex(random_bytes(6)) . '.part';
+                        $partHandle = @fopen($partMp4, 'wb');
+                        $writeFailed = false;
+
                         $this->ffmpegService->transcodeStreamToCallback(
                             $this->stream,
                             $this->startSeconds,
-                            static function (string $chunk) use ($output): void {
+                            static function (string $chunk) use ($output, $partHandle, &$writeFailed): void {
+                                if (is_resource($partHandle) && !$writeFailed) {
+                                    if (@fwrite($partHandle, $chunk) === false) {
+                                        $writeFailed = true;
+                                    }
+                                }
                                 $output->setOutput($chunk);
                                 if (ob_get_level() > 0) {
                                     @ob_flush();
                                 }
                                 @flush();
                             },
-                            $this->fileSize
+                            $this->fileSize,
+                            $this->cachePrefix
                         );
+
+                        if (is_resource($partHandle)) {
+                            @fclose($partHandle);
+                        }
+                        if (
+                            !$writeFailed
+                            && connection_aborted() === 0
+                            && is_file($partMp4)
+                            && ((int) @filesize($partMp4)) > 0
+                        ) {
+                            @rename($partMp4, $this->cachedMp4);
+                            StreamController::pruneTranscodeCache($this->cacheDir);
+                        } elseif (is_file($partMp4)) {
+                            @unlink($partMp4);
+                        }
                     }
                 };
             }
@@ -128,12 +184,7 @@ class StreamController extends Controller
             $rangeInfo = $this->mediaStreamService->resolveByteRange($file->getSize(), $rangeHeader, $mimeType);
 
             if ($rangeInfo['status'] === Http::STATUS_REQUEST_RANGE_NOT_SATISFIABLE) {
-                $resp = new Response();
-                $resp->setStatus(Http::STATUS_REQUEST_RANGE_NOT_SATISFIABLE);
-                foreach ($rangeInfo['headers'] as $name => $val) {
-                    $resp->addHeader($name, $val);
-                }
-                return $resp;
+                return $this->buildRangeUnsatisfiableResponse($rangeInfo);
             }
 
             $stream = $file->fopen('r');
@@ -141,39 +192,7 @@ class StreamController extends Controller
                 return $this->errorResponse($this->l10n->t('Unable to open video file stream'), Http::STATUS_INTERNAL_SERVER_ERROR);
             }
 
-            $mediaService = $this->mediaStreamService;
-            return new class($stream, $rangeInfo, $mediaService) extends Response implements ICallbackResponse {
-                /**
-                 * @param resource $stream
-                 * @param array{status: int, start: int, end: int, length: int, headers: array<string, string>} $rangeInfo
-                 */
-                public function __construct(
-                    private $stream,
-                    private array $rangeInfo,
-                    private MediaStreamService $mediaStreamService
-                ) {
-                    $this->setStatus($rangeInfo['status']);
-                    foreach ($rangeInfo['headers'] as $header => $value) {
-                        $this->addHeader($header, $value);
-                    }
-                }
-
-                public function callback(IOutput $output): void
-                {
-                    $this->mediaStreamService->streamRangeSlice(
-                        $this->stream,
-                        $this->rangeInfo['start'],
-                        $this->rangeInfo['length'],
-                        static function (string $chunk) use ($output): void {
-                            $output->setOutput($chunk);
-                            if (ob_get_level() > 0) {
-                                @ob_flush();
-                            }
-                            @flush();
-                        }
-                    );
-                }
-            };
+            return $this->buildRangeStreamResponse($stream, $rangeInfo);
         } catch (InvalidArgumentException $e) {
             return $this->errorResponse($this->l10n->t($e->getMessage()), Http::STATUS_BAD_REQUEST);
         } catch (NotPermittedException $e) {
@@ -332,5 +351,102 @@ class StreamController extends Controller
                 'message' => $message,
             ],
         ], $status);
+    }
+
+    /**
+     * @param array{status: int, start: int, end: int, length: int, headers: array<string, string>} $rangeInfo
+     */
+    private function buildRangeUnsatisfiableResponse(array $rangeInfo): Response
+    {
+        $resp = new Response();
+        $resp->setStatus(Http::STATUS_REQUEST_RANGE_NOT_SATISFIABLE);
+        foreach ($rangeInfo['headers'] as $name => $val) {
+            $resp->addHeader($name, $val);
+        }
+        return $resp;
+    }
+
+    /**
+     * @param resource $stream
+     * @param array{status: int, start: int, end: int, length: int, headers: array<string, string>} $rangeInfo
+     */
+    private function buildRangeStreamResponse($stream, array $rangeInfo): Response
+    {
+        $mediaService = $this->mediaStreamService;
+        return new class($stream, $rangeInfo, $mediaService) extends Response implements ICallbackResponse {
+            /**
+             * @param resource $stream
+             * @param array{status: int, start: int, end: int, length: int, headers: array<string, string>} $rangeInfo
+             */
+            public function __construct(
+                private $stream,
+                private array $rangeInfo,
+                private MediaStreamService $mediaStreamService
+            ) {
+                $this->setStatus($rangeInfo['status']);
+                foreach ($rangeInfo['headers'] as $header => $value) {
+                    $this->addHeader($header, $value);
+                }
+            }
+
+            public function callback(IOutput $output): void
+            {
+                $this->mediaStreamService->streamRangeSlice(
+                    $this->stream,
+                    $this->rangeInfo['start'],
+                    $this->rangeInfo['length'],
+                    static function (string $chunk) use ($output): void {
+                        $output->setOutput($chunk);
+                        if (ob_get_level() > 0) {
+                            @ob_flush();
+                        }
+                        @flush();
+                    }
+                );
+            }
+        };
+    }
+
+    public static function pruneTranscodeCache(string $cacheDir, int $maxBytes = 2147483648): void
+    {
+        $files = @glob($cacheDir . '/*');
+        if (!is_array($files)) {
+            return;
+        }
+
+        $now = time();
+        /** @var list<array{path: string, size: int, mtime: int}> $entries */
+        $entries = [];
+        $totalSize = 0;
+
+        foreach ($files as $path) {
+            if (!is_file($path)) {
+                continue;
+            }
+            $mtime = (int) (@filemtime($path) ?: 0);
+            if (str_ends_with($path, '.part')) {
+                if (($now - $mtime) > 3600) {
+                    @unlink($path);
+                }
+                continue;
+            }
+            $size = (int) (@filesize($path) ?: 0);
+            $entries[] = ['path' => $path, 'size' => $size, 'mtime' => $mtime];
+            $totalSize += $size;
+        }
+
+        if ($totalSize <= $maxBytes) {
+            return;
+        }
+
+        usort($entries, static fn (array $a, array $b): int => $a['mtime'] <=> $b['mtime']);
+        foreach ($entries as $entry) {
+            if ($totalSize <= $maxBytes) {
+                break;
+            }
+            if (@unlink($entry['path'])) {
+                $totalSize -= $entry['size'];
+            }
+        }
     }
 }
