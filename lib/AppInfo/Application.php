@@ -9,15 +9,17 @@ use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
+use OCP\IContainer;
 use OCP\IL10N;
 use OCP\INavigationManager;
 use OCP\IURLGenerator;
+use OCP\L10N\IFactory;
 use OCP\User\Events\UserLoggedOutEvent;
 
 class Application extends App implements IBootstrap
 {
     public const APP_ID = 'nextcloud_video_player';
-    public const APP_VERSION = '0.1.0';
+    public const APP_VERSION = '0.1.4';
 
     public function __construct(array $urlParams = [])
     {
@@ -26,6 +28,10 @@ class Application extends App implements IBootstrap
 
     public function register(IRegistrationContext $context): void
     {
+        $context->registerService(IL10N::class, static function (IContainer $c): IL10N {
+            return $c->get(IFactory::class)->get(self::APP_ID);
+        });
+
         $context->registerEventListener(
             UserLoggedOutEvent::class,
             UserLoggedOutListener::class
@@ -41,8 +47,9 @@ class Application extends App implements IBootstrap
         $navigationManager->add(static function () use ($container): array {
             /** @var IURLGenerator $urlGenerator */
             $urlGenerator = $container->get(IURLGenerator::class);
-            /** @var IL10N $l10n */
-            $l10n = $container->get(IL10N::class);
+            /** @var IFactory $l10nFactory */
+            $l10nFactory = $container->get(IFactory::class);
+            $l10n = $l10nFactory->get(self::APP_ID);
 
             return [
                 'id' => self::APP_ID,

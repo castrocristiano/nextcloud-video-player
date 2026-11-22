@@ -43,14 +43,24 @@ class FolderConfigService
 
             $folderPath = $entity->getFolderPath();
             $relPath = ltrim($folderPath, '/');
-            if ($relPath === '' || !$userFolder->nodeExists($relPath)) {
+            if ($relPath === '') {
                 continue;
             }
 
             try {
+                if (!$userFolder->nodeExists($relPath)) {
+                    continue;
+                }
                 $node = $userFolder->get($relPath);
-            } catch (\Throwable) {
+            } catch (NotFoundException|NotPermittedException) {
                 continue;
+            } catch (\Throwable) {
+                // Retry once if a 3rd-party cache listener (e.g. files_metadata) threw on first scan
+                try {
+                    $node = $userFolder->get($relPath);
+                } catch (\Throwable) {
+                    continue;
+                }
             }
 
             if (!$node instanceof Folder || !$node->isReadable()) {

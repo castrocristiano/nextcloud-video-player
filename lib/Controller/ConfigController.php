@@ -9,8 +9,10 @@ use OCA\NextcloudVideoPlayer\AppInfo\Application;
 use OCA\NextcloudVideoPlayer\Service\FfmpegService;
 use OCA\NextcloudVideoPlayer\Service\FolderConfigService;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\DataResponse;
-use OCP\AppFramework\Http\Http;
 use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
 use OCP\IL10N;
@@ -32,7 +34,10 @@ class ConfigController extends Controller
 
     /**
      * @NoAdminRequired
+     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function listRoots(): DataResponse
     {
         $userId = $this->requireAuthenticatedUserId();
@@ -60,6 +65,7 @@ class ConfigController extends Controller
     /**
      * @NoAdminRequired
      */
+    #[NoAdminRequired]
     public function addUserRoots(): DataResponse
     {
         $userId = $this->requireAuthenticatedUserId();
@@ -88,6 +94,7 @@ class ConfigController extends Controller
     /**
      * @NoAdminRequired
      */
+    #[NoAdminRequired]
     public function removeUserRoot(string $rootId): DataResponse
     {
         $userId = $this->requireAuthenticatedUserId();
@@ -109,7 +116,10 @@ class ConfigController extends Controller
 
     /**
      * @NoAdminRequired
+     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function browseUserFolders(): DataResponse
     {
         $userId = $this->requireAuthenticatedUserId();

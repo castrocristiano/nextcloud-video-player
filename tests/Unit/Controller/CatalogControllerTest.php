@@ -9,7 +9,7 @@ use OCA\NextcloudVideoPlayer\Service\FolderConfigService;
 use OCA\NextcloudVideoPlayer\Service\SafeNodeResolver;
 use OCA\NextcloudVideoPlayer\Service\SubtitleService;
 use OCA\NextcloudVideoPlayer\Service\VideoCatalogService;
-use OCP\AppFramework\Http\Http;
+use OCP\AppFramework\Http;
 use OCP\IL10N;
 use OCP\IRequest;
 use OCP\IUser;

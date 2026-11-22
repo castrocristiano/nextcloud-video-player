@@ -44,6 +44,18 @@ namespace OCP {
             public function getLanguageCode(): string;
         }
     }
+}
+
+namespace OCP\L10N {
+    if (!interface_exists(IFactory::class)) {
+        interface IFactory
+        {
+            public function get(string $app, ?string $lang = null): \OCP\IL10N;
+        }
+    }
+}
+
+namespace OCP {
 
     if (!interface_exists(IConfig::class)) {
         interface IConfig
@@ -393,7 +405,57 @@ namespace OCP\Settings {
     }
 }
 
-namespace OCP\Security\CSP {
+namespace OCP\AppFramework\Bootstrap {
+    if (!interface_exists(IRegistrationContext::class)) {
+        interface IRegistrationContext
+        {
+            public function registerEventListener(string $event, string $listener): void;
+            public function registerService(string $name, \Closure $closure): void;
+        }
+    }
+
+    if (!interface_exists(IBootContext::class)) {
+        interface IBootContext
+        {
+            public function getServerContainer(): \OCP\IServerContainer;
+        }
+    }
+
+    if (!interface_exists(IBootstrap::class)) {
+        interface IBootstrap
+        {
+            public function register(IRegistrationContext $context): void;
+            public function boot(IBootContext $context): void;
+        }
+    }
+}
+
+namespace OCP\AppFramework {
+    if (!class_exists(Http::class)) {
+        class Http
+        {
+            public const STATUS_OK = 200;
+            public const STATUS_CREATED = 201;
+            public const STATUS_NO_CONTENT = 204;
+            public const STATUS_PARTIAL_CONTENT = 206;
+            public const STATUS_BAD_REQUEST = 400;
+            public const STATUS_UNAUTHORIZED = 401;
+            public const STATUS_FORBIDDEN = 403;
+            public const STATUS_NOT_FOUND = 404;
+            public const STATUS_CONFLICT = 409;
+            public const STATUS_REQUEST_RANGE_NOT_SATISFIABLE = 416;
+            public const STATUS_TOO_MANY_REQUESTS = 429;
+            public const STATUS_INTERNAL_SERVER_ERROR = 500;
+            public const STATUS_NOT_IMPLEMENTED = 501;
+        }
+    }
+}
+
+namespace OCP\AppFramework\Http {
+    if (!class_exists(Http::class)) {
+        class_alias(\OCP\AppFramework\Http::class, Http::class);
+    }
+
     if (!class_exists(ContentSecurityPolicy::class)) {
         class ContentSecurityPolicy
         {
@@ -443,51 +505,6 @@ namespace OCP\Security\CSP {
             }
         }
     }
-}
-
-namespace OCP\AppFramework\Bootstrap {
-    if (!interface_exists(IRegistrationContext::class)) {
-        interface IRegistrationContext
-        {
-            public function registerEventListener(string $event, string $listener): void;
-        }
-    }
-
-    if (!interface_exists(IBootContext::class)) {
-        interface IBootContext
-        {
-            public function getServerContainer(): \OCP\IServerContainer;
-        }
-    }
-
-    if (!interface_exists(IBootstrap::class)) {
-        interface IBootstrap
-        {
-            public function register(IRegistrationContext $context): void;
-            public function boot(IBootContext $context): void;
-        }
-    }
-}
-
-namespace OCP\AppFramework\Http {
-    if (!class_exists(Http::class)) {
-        class Http
-        {
-            public const STATUS_OK = 200;
-            public const STATUS_CREATED = 201;
-            public const STATUS_NO_CONTENT = 204;
-            public const STATUS_PARTIAL_CONTENT = 206;
-            public const STATUS_BAD_REQUEST = 400;
-            public const STATUS_UNAUTHORIZED = 401;
-            public const STATUS_FORBIDDEN = 403;
-            public const STATUS_NOT_FOUND = 404;
-            public const STATUS_CONFLICT = 409;
-            public const STATUS_REQUESTED_RANGE_NOT_SATISFIABLE = 416;
-            public const STATUS_TOO_MANY_REQUESTS = 429;
-            public const STATUS_INTERNAL_SERVER_ERROR = 500;
-            public const STATUS_NOT_IMPLEMENTED = 501;
-        }
-    }
 
     if (!interface_exists(ICallbackResponse::class)) {
         interface ICallbackResponse
@@ -509,7 +526,7 @@ namespace OCP\AppFramework\Http {
             private int $status = Http::STATUS_OK;
             /** @var array<string, string> */
             private array $headers = [];
-            private ?\OCP\Security\CSP\ContentSecurityPolicy $csp = null;
+            private ?ContentSecurityPolicy $csp = null;
 
             public function setStatus(int $status): self
             {
@@ -534,13 +551,13 @@ namespace OCP\AppFramework\Http {
                 return $this->headers;
             }
 
-            public function setContentSecurityPolicy(\OCP\Security\CSP\ContentSecurityPolicy $csp): self
+            public function setContentSecurityPolicy(ContentSecurityPolicy $csp): self
             {
                 $this->csp = $csp;
                 return $this;
             }
 
-            public function getContentSecurityPolicy(): ?\OCP\Security\CSP\ContentSecurityPolicy
+            public function getContentSecurityPolicy(): ?ContentSecurityPolicy
             {
                 return $this->csp;
             }
@@ -858,6 +875,22 @@ namespace OCP\AppFramework\Db {
                 }
                 return $entities;
             }
+        }
+    }
+}
+
+namespace OCP\AppFramework\Http\Attribute {
+    if (!class_exists(NoAdminRequired::class)) {
+        #[\Attribute(\Attribute::TARGET_METHOD)]
+        class NoAdminRequired
+        {
+        }
+    }
+
+    if (!class_exists(NoCSRFRequired::class)) {
+        #[\Attribute(\Attribute::TARGET_METHOD)]
+        class NoCSRFRequired
+        {
         }
     }
 }

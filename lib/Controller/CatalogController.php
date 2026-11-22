@@ -10,8 +10,10 @@ use OCA\NextcloudVideoPlayer\Service\SafeNodeResolver;
 use OCA\NextcloudVideoPlayer\Service\SubtitleService;
 use OCA\NextcloudVideoPlayer\Service\VideoCatalogService;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\DataResponse;
-use OCP\AppFramework\Http\Http;
 use OCP\AppFramework\Http\ICallbackResponse;
 use OCP\AppFramework\Http\IOutput;
 use OCP\AppFramework\Http\Response;
@@ -38,7 +40,10 @@ class CatalogController extends Controller
 
     /**
      * @NoAdminRequired
+     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function listFolder(): DataResponse
     {
         $userId = $this->requireAuthenticatedUserId();
@@ -64,7 +69,10 @@ class CatalogController extends Controller
 
     /**
      * @NoAdminRequired
+     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function search(): DataResponse
     {
         $userId = $this->requireAuthenticatedUserId();
@@ -93,6 +101,8 @@ class CatalogController extends Controller
      * @NoAdminRequired
      * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function serveSubtitle(string $rootId): Response
     {
         $userId = $this->requireAuthenticatedUserId();

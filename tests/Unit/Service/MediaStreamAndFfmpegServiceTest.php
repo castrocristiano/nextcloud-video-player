@@ -6,7 +6,7 @@ namespace OCA\NextcloudVideoPlayer\Tests\Unit\Service;
 
 use OCA\NextcloudVideoPlayer\Service\FfmpegService;
 use OCA\NextcloudVideoPlayer\Service\MediaStreamService;
-use OCP\AppFramework\Http\Http;
+use OCP\AppFramework\Http;
 use OCP\IConfig;
 use PHPUnit\Framework\TestCase;
 
@@ -40,7 +40,7 @@ class MediaStreamAndFfmpegServiceTest extends TestCase
 
         // Invalid range -> 416
         $invalid = $service->resolveByteRange(1000, 'bytes=2000-2500', 'video/mp4');
-        $this->assertSame(Http::STATUS_REQUESTED_RANGE_NOT_SATISFIABLE, $invalid['status']);
+        $this->assertSame(Http::STATUS_REQUEST_RANGE_NOT_SATISFIABLE, $invalid['status']);
         $this->assertSame('bytes */1000', $invalid['headers']['Content-Range']);
 
         // Stream slice reading

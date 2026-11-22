@@ -12,8 +12,10 @@ use OCA\NextcloudVideoPlayer\Service\PlaybackSessionService;
 use OCA\NextcloudVideoPlayer\Service\SafeNodeResolver;
 use OCA\NextcloudVideoPlayer\Service\VideoCatalogService;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\DataResponse;
-use OCP\AppFramework\Http\Http;
 use OCP\AppFramework\Http\ICallbackResponse;
 use OCP\AppFramework\Http\IOutput;
 use OCP\AppFramework\Http\Response;
@@ -51,6 +53,8 @@ class StreamController extends Controller
      * @NoAdminRequired
      * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function stream(string $rootId): Response
     {
         $userId = $this->requireAuthenticatedUserId();
@@ -60,6 +64,8 @@ class StreamController extends Controller
 
         $path = (string) $this->request->getParam('path', '');
         $sessionToken = (string) $this->request->getParam('sessionToken', '');
+        $transcodeRequested = filter_var($this->request->getParam('transcode', false), FILTER_VALIDATE_BOOLEAN);
+        $startSeconds = max(0.0, (float) $this->request->getParam('start', 0));
 
         try {
             $this->sessionService->validateStreamingSession($userId, $sessionToken, $rootId, $path);
@@ -74,13 +80,51 @@ class StreamController extends Controller
             // Release the PHP session lock BEFORE opening/streaming the file so concurrent requests stay responsive
             $this->phpSession->close();
 
+            if ($transcodeRequested && $this->ffmpegService->isTranscodingEnabled()) {
+                $stream = $file->fopen('r');
+                if (!is_resource($stream)) {
+                    return $this->errorResponse($this->l10n->t('Unable to open video file stream'), Http::STATUS_INTERNAL_SERVER_ERROR);
+                }
+                $ffmpegService = $this->ffmpegService;
+                return new class($stream, $startSeconds, $ffmpegService) extends Response implements ICallbackResponse {
+                    /**
+                     * @param resource $stream
+                     */
+                    public function __construct(
+                        private $stream,
+                        private float $startSeconds,
+                        private FfmpegService $ffmpegService
+                    ) {
+                        $this->setStatus(Http::STATUS_OK);
+                        $this->addHeader('Content-Type', 'video/mp4');
+                        $this->addHeader('Cache-Control', 'no-store');
+                        $this->addHeader('X-Content-Type-Options', 'nosniff');
+                    }
+
+                    public function callback(IOutput $output): void
+                    {
+                        $this->ffmpegService->transcodeStreamToCallback(
+                            $this->stream,
+                            $this->startSeconds,
+                            static function (string $chunk) use ($output): void {
+                                $output->setOutput($chunk);
+                                if (ob_get_level() > 0) {
+                                    @ob_flush();
+                                }
+                                @flush();
+                            }
+                        );
+                    }
+                };
+            }
+
             $mimeType = $this->catalogService->getMimeTypeForFilename($file->getName());
             $rangeHeader = $this->request->getHeader('Range');
             $rangeInfo = $this->mediaStreamService->resolveByteRange($file->getSize(), $rangeHeader, $mimeType);
 
-            if ($rangeInfo['status'] === Http::STATUS_REQUESTED_RANGE_NOT_SATISFIABLE) {
+            if ($rangeInfo['status'] === Http::STATUS_REQUEST_RANGE_NOT_SATISFIABLE) {
                 $resp = new Response();
-                $resp->setStatus(Http::STATUS_REQUESTED_RANGE_NOT_SATISFIABLE);
+                $resp->setStatus(Http::STATUS_REQUEST_RANGE_NOT_SATISFIABLE);
                 foreach ($rangeInfo['headers'] as $name => $val) {
                     $resp->addHeader($name, $val);
                 }
@@ -117,6 +161,10 @@ class StreamController extends Controller
                         $this->rangeInfo['length'],
                         static function (string $chunk) use ($output): void {
                             $output->setOutput($chunk);
+                            if (ob_get_level() > 0) {
+                                @ob_flush();
+                            }
+                            @flush();
                         }
                     );
                 }
@@ -132,7 +180,10 @@ class StreamController extends Controller
 
     /**
      * @NoAdminRequired
+     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function probe(string $rootId): DataResponse
     {
         $userId = $this->requireAuthenticatedUserId();
@@ -156,6 +207,20 @@ class StreamController extends Controller
                 ]);
             }
 
+            $this->phpSession->close();
+
+            $stream = $file->fopen('r');
+            if (is_resource($stream)) {
+                try {
+                    $info = $this->ffmpegService->probeStreamHeader($stream);
+                    if (($info['duration'] ?? 0.0) > 0.0 || $info['videoCodec'] !== null || $info['audioCodec'] !== null) {
+                        return new DataResponse($info);
+                    }
+                } catch (RuntimeException) {
+                    // Fall back to probeLocalFile below
+                }
+            }
+
             $info = $this->ffmpegService->probeLocalFile($file->getInternalPath());
             return new DataResponse($info);
         } catch (InvalidArgumentException $e) {
@@ -173,6 +238,8 @@ class StreamController extends Controller
      * @NoAdminRequired
      * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function thumbnail(string $rootId): Response
     {
         $userId = $this->requireAuthenticatedUserId();

@@ -6,9 +6,11 @@ namespace OCA\NextcloudVideoPlayer\Controller;
 
 use OCA\NextcloudVideoPlayer\AppInfo\Application;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
+use OCP\AppFramework\Http\ContentSecurityPolicy;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\IRequest;
-use OCP\Security\CSP\ContentSecurityPolicy;
 use OCP\Util;
 
 class PageController extends Controller
@@ -24,6 +26,8 @@ class PageController extends Controller
      * @NoAdminRequired
      * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function index(): TemplateResponse
     {
         Util::addStyle(Application::APP_ID, 'style');

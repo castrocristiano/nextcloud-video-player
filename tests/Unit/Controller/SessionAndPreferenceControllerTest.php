@@ -9,7 +9,7 @@ use OCA\NextcloudVideoPlayer\Controller\SessionController;
 use OCA\NextcloudVideoPlayer\Service\ConcurrentSessionLimitException;
 use OCA\NextcloudVideoPlayer\Service\PlaybackSessionService;
 use OCA\NextcloudVideoPlayer\Service\PreferenceService;
-use OCP\AppFramework\Http\Http;
+use OCP\AppFramework\Http;
 use OCP\IL10N;
 use OCP\IRequest;
 use OCP\IUser;
