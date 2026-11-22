@@ -59,7 +59,11 @@ class PlaybackSessionService
         $mode = $streamMode === 'transcode' ? 'transcode' : 'direct';
         $cleanAgent = $clientAgent !== null ? substr(trim($clientAgent), 0, 255) : null;
 
-        $entity = new PlaybackSessionEntity();
+        $existingEntity = $maxConcurrent <= 1
+            ? $this->sessionMapper->findLatestForUser($userId)
+            : $this->sessionMapper->findLatestEndedForUser($userId);
+
+        $entity = $existingEntity ?? new PlaybackSessionEntity();
         $entity->setSessionToken($token);
         $entity->setUserId($userId);
         $entity->setRootKey($rootKey);
@@ -72,7 +76,19 @@ class PlaybackSessionService
         $entity->setExpiresAt($now + $ttl);
         $entity->setEndedAt(null);
 
-        $this->sessionMapper->insert($entity);
+        if ($existingEntity !== null) {
+            $this->sessionMapper->update($entity);
+            $keepId = (int) $entity->getId();
+            if ($keepId > 0) {
+                if ($maxConcurrent <= 1) {
+                    $this->sessionMapper->deleteOtherSessionsForUser($userId, $keepId);
+                } else {
+                    $this->sessionMapper->deleteEndedForUserExcept($userId, $keepId);
+                }
+            }
+        } else {
+            $this->sessionMapper->insert($entity);
+        }
 
         return [
             'sessionToken' => $token,

@@ -451,5 +451,17 @@ describe("catalog, picker, and player modules", () => {
     expect(switchSpy).toHaveBeenCalledTimes(1);
     expect(switchSpy).toHaveBeenCalledWith(state.currentVideo, 30);
     vi.useRealTimers();
+
+    // Seeking within already buffered transcoded range adjusts currentTime directly without restarting FFmpeg
+    switchSpy.mockClear();
+    state.transcodeBaseOffset = 100;
+    dom.videoElement.currentTime = 25;
+    Object.defineProperty(dom.videoElement, "buffered", {
+      value: { length: 1, start: () => 0, end: () => 40 },
+      configurable: true,
+    });
+    dom.seekBackBtn.click();
+    expect(dom.videoElement.currentTime).toBe(15);
+    expect(switchSpy).not.toHaveBeenCalled();
   });
 });

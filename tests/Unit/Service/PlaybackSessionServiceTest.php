@@ -123,4 +123,66 @@ class PlaybackSessionServiceTest extends TestCase
         $this->expectException(NotPermittedException::class);
         $service->validateStreamingSession('alice', $token, 'rk1', 'Film.mp4');
     }
+
+    public function testStartSessionReusesLatestSessionAndCleansUpOlderSessions(): void
+    {
+        $existing = new PlaybackSessionEntity();
+        $existing->setId(10);
+        $existing->setUserId('alice');
+        $existing->setSessionToken('old-token-123');
+        $existing->setStatus('ended');
+
+        $insertCalled = false;
+        $updatedEntity = null;
+        $cleanedUser = null;
+        $cleanedKeepId = null;
+
+        $mapper = $this->createMock(PlaybackSessionMapper::class);
+        $mapper->method('findActiveForUser')->willReturn([]);
+        $mapper->method('findLatestForUser')->with('alice')->willReturn($existing);
+        $mapper->method('insert')->willReturnCallback(static function (PlaybackSessionEntity $e) use (&$insertCalled): PlaybackSessionEntity {
+            $insertCalled = true;
+            return $e;
+        });
+        $mapper->method('update')->willReturnCallback(static function (PlaybackSessionEntity $e) use (&$updatedEntity): PlaybackSessionEntity {
+            $updatedEntity = $e;
+            return $e;
+        });
+        $mapper->method('deleteOtherSessionsForUser')->willReturnCallback(static function (string $uid, int $keepId) use (&$cleanedUser, &$cleanedKeepId): int {
+            $cleanedUser = $uid;
+            $cleanedKeepId = $keepId;
+            return 5;
+        });
+
+        $folderService = $this->createMock(FolderConfigService::class);
+        $folderService->method('getEffectiveRoots')
+            ->willReturn([['id' => 'rk1', 'path' => '/Movies', 'label' => 'Movies', 'scope' => 'global']]);
+
+        $file = $this->createMock(File::class);
+        $folder = $this->createMock(Folder::class);
+        $resolver = $this->createMock(SafeNodeResolver::class);
+        $resolver->method('resolveFileInRoot')
+            ->willReturn(['root' => ['id' => 'rk1', 'path' => '/Movies', 'label' => 'Movies', 'scope' => 'global'], 'rootFolder' => $folder, 'file' => $file, 'relativePath' => '/Film.mp4']);
+
+        $progressService = $this->createMock(ProgressService::class);
+        $progressService->method('getVideoProgress')->willReturn(null);
+
+        $config = $this->createMock(IConfig::class);
+        $config->method('getAppValue')->willReturnCallback(static fn (string $app, string $key, string $def = ''): string => match ($key) {
+            'session_ttl_seconds' => '180',
+            'max_concurrent_sessions' => '0',
+            default => $def,
+        });
+
+        $service = new PlaybackSessionService($mapper, $folderService, $resolver, $progressService, $config);
+        $started = $service->startSession('alice', 'rk1', 'Film.mp4', 'transcode', 'Firefox');
+
+        $this->assertFalse($insertCalled);
+        $this->assertNotNull($updatedEntity);
+        $this->assertSame(10, $updatedEntity->getId());
+        $this->assertSame('active', $updatedEntity->getStatus());
+        $this->assertNotSame('old-token-123', $started['sessionToken']);
+        $this->assertSame('alice', $cleanedUser);
+        $this->assertSame(10, $cleanedKeepId);
+    }
 }

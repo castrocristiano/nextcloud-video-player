@@ -247,8 +247,21 @@ class FfmpegService
      * @param resource $inputStream
      * @param callable(string): void $writer
      */
-    public function transcodeStreamToCallback($inputStream, float $startSeconds, callable $writer): void
+    public function transcodeStreamToCallback($inputStream, float $startSeconds, callable $writer, ?int $fileSize = null): void
     {
+        if (
+            $fileSize !== null
+            && $fileSize > 0
+            && is_resource($inputStream)
+            && stream_get_meta_data($inputStream)['seekable']
+        ) {
+            $server = @stream_socket_server('tcp://127.0.0.1:0', $errno, $errstr);
+            if (is_resource($server)) {
+                $this->transcodeViaLoopbackRange($inputStream, $fileSize, $startSeconds, $writer, $server);
+                return;
+            }
+        }
+
         $cmd = $this->buildTranscodeCommand('pipe:0', $startSeconds);
         $descriptors = [
             0 => ['pipe', 'r'],
@@ -346,6 +359,219 @@ class FfmpegService
                 @fclose($inputStream);
             }
         }
+    }
+
+    /**
+     * Streams a seekable Nextcloud resource to FFmpeg over an ephemeral 127.0.0.1 HTTP Range proxy
+     * so FFmpeg can perform fast demuxer/byte-range seeking without buffering the entire file.
+     *
+     * @param resource $inputStream
+     * @param resource $server
+     */
+    private function transcodeViaLoopbackRange($inputStream, int $fileSize, float $startSeconds, callable $writer, $server): void
+    {
+        $address = @stream_socket_get_name($server, false);
+        if (!is_string($address) || $address === '') {
+            @fclose($server);
+            @fclose($inputStream);
+            return;
+        }
+
+        @stream_set_blocking($server, false);
+        $token = bin2hex(random_bytes(16));
+        $cmd = $this->buildTranscodeCommand('http://' . $address . '/' . $token, $startSeconds);
+        $descriptors = [
+            0 => ['pipe', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ];
+
+        $process = @proc_open($cmd, $descriptors, $pipes);
+        if (!is_resource($process)) {
+            @fclose($server);
+            @fclose($inputStream);
+            return;
+        }
+
+        @fclose($pipes[0]);
+        @stream_set_blocking($pipes[1], false);
+        @stream_set_blocking($pipes[2], false);
+
+        /** @var array<int, array{sock: resource, req: string, buf: string, pos: int, rem: int, ready: bool}> $clients */
+        $clients = [];
+
+        try {
+            while (true) {
+                if (connection_aborted() !== 0) {
+                    break;
+                }
+
+                $read = [$server];
+                if (is_resource($pipes[1]) && !@feof($pipes[1])) {
+                    $read[] = $pipes[1];
+                }
+                if (is_resource($pipes[2]) && !@feof($pipes[2])) {
+                    $read[] = $pipes[2];
+                }
+
+                $write = [];
+                foreach ($clients as $c) {
+                    if ($c['buf'] !== '' || $c['rem'] > 0) {
+                        $write[] = $c['sock'];
+                    } elseif (!$c['ready']) {
+                        $read[] = $c['sock'];
+                    }
+                }
+
+                if ($read === [$server] && $write === [] && (!is_resource($pipes[1]) || @feof($pipes[1]))) {
+                    break;
+                }
+
+                $writeParam = $write !== [] ? $write : null;
+                $except = null;
+                $selected = @stream_select($read, $writeParam, $except, 0, 50000);
+                if ($selected === false) {
+                    break;
+                }
+
+                if (in_array($server, $read, true)) {
+                    $clientSock = @stream_socket_accept($server, 0);
+                    if (is_resource($clientSock)) {
+                        @stream_set_blocking($clientSock, false);
+                        $clients[(int) $clientSock] = [
+                            'sock' => $clientSock,
+                            'req' => '',
+                            'buf' => '',
+                            'pos' => 0,
+                            'rem' => 0,
+                            'ready' => false,
+                        ];
+                    }
+                }
+
+                foreach ($clients as $cid => &$c) {
+                    if (in_array($c['sock'], $read, true)) {
+                        $data = @fread($c['sock'], 8192);
+                        if ($data === false || $data === '') {
+                            @fclose($c['sock']);
+                            unset($clients[$cid]);
+                            continue;
+                        }
+                        $c['req'] .= $data;
+                        if (str_contains($c['req'], "\r\n\r\n")) {
+                            $this->prepareLoopbackHttpResponse($c, $token, $fileSize);
+                        }
+                    }
+
+                    if ($writeParam !== null && in_array($c['sock'], $writeParam, true)) {
+                        if ($c['buf'] === '' && $c['rem'] > 0) {
+                            @fseek($inputStream, $c['pos']);
+                            $chunk = @fread($inputStream, min(131072, $c['rem']));
+                            if ($chunk === false || $chunk === '') {
+                                $c['rem'] = 0;
+                            } else {
+                                $c['buf'] = $chunk;
+                                $c['pos'] += strlen($chunk);
+                                $c['rem'] -= strlen($chunk);
+                            }
+                        }
+
+                        if ($c['buf'] !== '') {
+                            $written = @fwrite($c['sock'], $c['buf']);
+                            if ($written === false) {
+                                @fclose($c['sock']);
+                                unset($clients[$cid]);
+                                continue;
+                            }
+                            if ($written > 0) {
+                                $c['buf'] = (string) substr($c['buf'], $written);
+                            }
+                        }
+
+                        if ($c['buf'] === '' && $c['rem'] <= 0) {
+                            @fclose($c['sock']);
+                            unset($clients[$cid]);
+                        }
+                    }
+                }
+                unset($c);
+
+                if (is_resource($pipes[1]) && in_array($pipes[1], $read, true)) {
+                    $outChunk = @fread($pipes[1], 65536);
+                    if ($outChunk !== false && $outChunk !== '') {
+                        $writer($outChunk);
+                    }
+                }
+
+                if (is_resource($pipes[2]) && in_array($pipes[2], $read, true)) {
+                    @fread($pipes[2], 65536);
+                }
+            }
+        } finally {
+            foreach ($clients as $c) {
+                if (is_resource($c['sock'])) {
+                    @fclose($c['sock']);
+                }
+            }
+            foreach ([1, 2] as $idx) {
+                if (isset($pipes[$idx]) && is_resource($pipes[$idx])) {
+                    @fclose($pipes[$idx]);
+                }
+            }
+            @proc_terminate($process);
+            @proc_close($process);
+            @fclose($server);
+            if (is_resource($inputStream)) {
+                @fclose($inputStream);
+            }
+        }
+    }
+
+    /**
+     * @param array{sock: resource, req: string, buf: string, pos: int, rem: int, ready: bool} $client
+     */
+    private function prepareLoopbackHttpResponse(array &$client, string $expectedToken, int $fileSize): void
+    {
+        $requestLines = explode("\r\n", $client['req']);
+        $firstLine = $requestLines[0] ?? '';
+        $parts = explode(' ', $firstLine);
+        $path = $parts[1] ?? '';
+
+        if (!hash_equals('/' . $expectedToken, $path)) {
+            $client['buf'] = "HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+            $client['rem'] = 0;
+            $client['ready'] = true;
+            $client['req'] = '';
+            return;
+        }
+
+        $start = 0;
+        $end = $fileSize - 1;
+        $hasRange = false;
+
+        if (preg_match('/^Range:\s*bytes=(\d+)-(\d*)/im', $client['req'], $matches) === 1) {
+            $hasRange = true;
+            $start = max(0, min($fileSize - 1, (int) $matches[1]));
+            if ($matches[2] !== '') {
+                $end = max($start, min($fileSize - 1, (int) $matches[2]));
+            }
+        }
+
+        $length = max(0, $end - $start + 1);
+        $statusLine = $hasRange ? 'HTTP/1.1 206 Partial Content' : 'HTTP/1.1 200 OK';
+        $headers = $statusLine . "\r\n"
+            . "Content-Length: {$length}\r\n"
+            . "Accept-Ranges: bytes\r\n";
+        if ($hasRange) {
+            $headers .= "Content-Range: bytes {$start}-{$end}/{$fileSize}\r\n";
+        }
+        $headers .= "Connection: close\r\n\r\n";
+
+        $client['buf'] = $headers;
+        $client['pos'] = $start;
+        $client['rem'] = $length;
+        $client['ready'] = true;
+        $client['req'] = '';
     }
 
     /**
