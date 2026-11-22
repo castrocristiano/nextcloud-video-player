@@ -103,11 +103,17 @@ class SafeNodeResolver
 
         $userFolder = $this->rootFolder->getUserFolder($userId);
         $relFromUser = ltrim($matchedRoot['path'], '/');
-        if (!$userFolder->nodeExists($relFromUser)) {
-            throw new NotFoundException('Configured folder does not exist');
+        try {
+            if (!$userFolder->nodeExists($relFromUser)) {
+                throw new NotFoundException('Configured folder does not exist');
+            }
+            $node = $userFolder->get($relFromUser);
+        } catch (NotFoundException|NotPermittedException $e) {
+            throw $e;
+        } catch (\Throwable) {
+            $node = $userFolder->get($relFromUser);
         }
 
-        $node = $userFolder->get($relFromUser);
         if (!$node instanceof Folder || !$node->isReadable()) {
             throw new NotPermittedException('Configured folder is not readable');
         }
