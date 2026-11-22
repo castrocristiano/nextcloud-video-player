@@ -194,6 +194,11 @@ $appVersion = isset($_['appVersion']) ? (string) $_['appVersion'] : '0.1.0';
 						<select id="subtitleSelect" aria-label="<?php p($l->t('Select local subtitle')); ?>">
 							<option value="-1"><?php p($l->t('Disabled')); ?></option>
 						</select>
+						<div class="ncvp-sub-sync-group" id="subSyncGroup">
+							<button type="button" id="subSyncMinusBtn" class="ncvp-btn ncvp-btn-secondary ncvp-btn-sm" title="<?php p($l->t('Advance subtitle (-0.5s)')); ?>">-0.5s</button>
+							<span id="subSyncLabel" class="ncvp-seek-time" title="<?php p($l->t('Subtitle synchronization offset')); ?>">0.0s</span>
+							<button type="button" id="subSyncPlusBtn" class="ncvp-btn ncvp-btn-secondary ncvp-btn-sm" title="<?php p($l->t('Delay subtitle (+0.5s)')); ?>">+0.5s</button>
+						</div>
 					</div>
 
 					<div class="ncvp-toolbar-group">

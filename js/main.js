@@ -318,6 +318,7 @@ function createAppState() {
     triedTranscodeFallback: false,
     isTranscodedStream: false,
     transcodeBaseOffset: 0,
+    subtitleSyncOffset: 0,
     totalDuration: 0,
     isDraggingSeek: false,
     // Folder Picker state
@@ -1014,7 +1015,20 @@ class VideoPlayerController {
     });
 
     dom.subtitleSelect?.addEventListener("change", () => {
-      this.applySelectedSubtitleTrack(Number(dom.subtitleSelect.value));
+      const idx = Number(dom.subtitleSelect.value);
+      this.applySelectedSubtitleTrack(idx);
+      const subs = state.currentVideo?.subtitles || [];
+      savePreferencesToServer(state, {
+        preferredSubtitle: idx >= 0 && subs[idx] ? subs[idx].lang || "default" : "off",
+      });
+    });
+
+    dom.subSyncMinusBtn?.addEventListener("click", () => {
+      this.adjustSubtitleSyncOffset(-0.5);
+    });
+
+    dom.subSyncPlusBtn?.addEventListener("click", () => {
+      this.adjustSubtitleSyncOffset(0.5);
     });
 
     dom.audioTrackSelect?.addEventListener("change", () => {
@@ -1054,6 +1068,9 @@ class VideoPlayerController {
         state.totalDuration <= 0
       ) {
         this.applyTotalDuration(dur);
+      }
+      if (dom.subtitleSelect) {
+        this.applySelectedSubtitleTrack(Number(dom.subtitleSelect.value));
       }
       this.populateAudioTracks();
     });
@@ -1133,8 +1150,13 @@ class VideoPlayerController {
     state.currentVideoIndex = index;
     state.currentVideo = video;
     state.transcodeBaseOffset = 0;
+    state.subtitleSyncOffset = 0;
     state.totalDuration = 0;
     state.triedTranscodeFallback = false;
+
+    if (dom.subSyncLabel) {
+      dom.subSyncLabel.textContent = "0.0s";
+    }
 
     if (dom.currentTimeLabel) {
       dom.currentTimeLabel.textContent = "00:00";
@@ -1218,7 +1240,7 @@ class VideoPlayerController {
       streamParams
     );
 
-    this.populateSubtitleTracks(video);
+    this.populateSubtitleTracks(video, initialStartOffset);
 
     dom.videoElement.src = streamUrl;
     dom.videoElement.playbackRate = state.prefs.playbackRate || 1.0;
@@ -1311,6 +1333,8 @@ class VideoPlayerController {
       }
     );
 
+    this.populateSubtitleTracks(video, state.transcodeBaseOffset);
+
     dom.videoElement.src = streamUrl;
     dom.videoElement.playbackRate = state.prefs.playbackRate || 1.0;
     try {
@@ -1325,11 +1349,15 @@ class VideoPlayerController {
     }
   }
 
-  populateSubtitleTracks(video) {
+  populateSubtitleTracks(video, offsetSeconds = 0) {
     const { dom } = this;
     if (!dom.videoElement || !dom.subtitleSelect) {
       return;
     }
+    const previousSelection =
+      dom.subtitleSelect.options.length > 1
+        ? Number(dom.subtitleSelect.value)
+        : null;
     dom.videoElement.querySelectorAll("track").forEach((tr) => tr.remove());
     dom.subtitleSelect.innerHTML = "";
 
@@ -1339,22 +1367,58 @@ class VideoPlayerController {
     dom.subtitleSelect.appendChild(offOpt);
 
     const subs = video.subtitles || [];
+    let autoSelectIdx = -1;
+    if (
+      previousSelection !== null &&
+      Number.isFinite(previousSelection) &&
+      previousSelection >= -1 &&
+      previousSelection < subs.length
+    ) {
+      autoSelectIdx = previousSelection;
+    } else if (subs.length > 0 && this.state.prefs?.preferredSubtitle !== "off") {
+      const pref = this.state.prefs?.preferredSubtitle;
+      const matched = pref
+        ? subs.findIndex((s) => s.lang === pref || s.label === pref)
+        : -1;
+      autoSelectIdx = matched >= 0 ? matched : 0;
+    }
+
+    const safeOffset = Math.max(0, Math.floor(Number(offsetSeconds) || 0));
+    const syncDelay = Number(this.state.subtitleSyncOffset) || 0;
+
     subs.forEach((sub, idx) => {
       const track = document.createElement("track");
       track.kind = "subtitles";
       track.label = sub.label || sub.lang || `Subtitle ${idx + 1}`;
-      track.srclang = sub.lang || "en";
+      track.srclang = sub.lang && sub.lang !== "default" ? sub.lang : "pt";
       track.src = buildAppUrl(
         `/api/v1/subtitles/${encodeURIComponent(video.rootId)}`,
-        { path: sub.relativePath }
+        {
+          path: sub.relativePath,
+          ...(safeOffset > 0 ? { offset: String(safeOffset) } : {}),
+          ...(Math.abs(syncDelay) >= 0.01 ? { delay: syncDelay.toFixed(2) } : {}),
+        }
       );
+      if (idx === autoSelectIdx) {
+        track.default = true;
+      }
       dom.videoElement.appendChild(track);
 
       const opt = document.createElement("option");
       opt.value = String(idx);
       opt.textContent = track.label;
+      if (idx === autoSelectIdx) {
+        opt.selected = true;
+      }
       dom.subtitleSelect.appendChild(opt);
     });
+
+    if (autoSelectIdx >= 0) {
+      dom.subtitleSelect.value = String(autoSelectIdx);
+      setTimeout(() => {
+        this.applySelectedSubtitleTrack(autoSelectIdx);
+      }, 50);
+    }
   }
 
   applySelectedSubtitleTrack(selectedIdx) {
@@ -1365,6 +1429,23 @@ class VideoPlayerController {
     for (let i = 0; i < tracks.length; i++) {
       tracks[i].mode = i === selectedIdx ? "showing" : "disabled";
     }
+  }
+
+  adjustSubtitleSyncOffset(deltaSeconds) {
+    const { dom, state } = this;
+    if (!state.currentVideo) {
+      return;
+    }
+    const next = Math.round(((Number(state.subtitleSyncOffset) || 0) + deltaSeconds) * 10) / 10;
+    state.subtitleSyncOffset = next;
+    if (dom.subSyncLabel) {
+      const sign = next > 0 ? "+" : "";
+      dom.subSyncLabel.textContent = `${sign}${next.toFixed(1)}s`;
+    }
+    this.populateSubtitleTracks(
+      state.currentVideo,
+      state.isTranscodedStream ? state.transcodeBaseOffset : 0
+    );
   }
 
   populateAudioTracks() {
@@ -1721,6 +1802,9 @@ function collectDom() {
     autoplayCancelBtn: document.getElementById("autoplayCancelBtn"),
     speedSelect: document.getElementById("speedSelect"),
     subtitleSelect: document.getElementById("subtitleSelect"),
+    subSyncMinusBtn: document.getElementById("subSyncMinusBtn"),
+    subSyncLabel: document.getElementById("subSyncLabel"),
+    subSyncPlusBtn: document.getElementById("subSyncPlusBtn"),
     audioTrackSelect: document.getElementById("audioTrackSelect"),
     autoplayNextCheckbox: document.getElementById("autoplayNextCheckbox"),
     playPauseBtn: document.getElementById("playPauseBtn"),

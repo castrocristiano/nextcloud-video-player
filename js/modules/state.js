@@ -36,6 +36,7 @@ export function createAppState() {
     triedTranscodeFallback: false,
     isTranscodedStream: false,
     transcodeBaseOffset: 0,
+    subtitleSyncOffset: 0,
     totalDuration: 0,
     isDraggingSeek: false,
     // Folder Picker state

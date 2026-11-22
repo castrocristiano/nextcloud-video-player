@@ -1,0 +1,6 @@
+{
+    "sonarlint.connectedMode.project": {
+        "connectionId": "http-192-168-1-20-9000",
+        "projectKey": "nextcloud-video-player"
+    }
+}

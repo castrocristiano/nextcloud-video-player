@@ -111,6 +111,9 @@ class CatalogController extends Controller
         }
 
         $path = (string) $this->request->getParam('path', '');
+        $offsetSeconds = max(0.0, (float) $this->request->getParam('offset', 0));
+        $syncDelaySeconds = (float) $this->request->getParam('delay', 0);
+        $totalShiftSeconds = $syncDelaySeconds - $offsetSeconds;
 
         try {
             $effectiveRoots = $this->folderConfigService->getEffectiveRoots($userId);
@@ -121,6 +124,9 @@ class CatalogController extends Controller
                 $effectiveRoots,
                 $this->safeNodeResolver
             );
+            if (abs($totalShiftSeconds) >= 0.001) {
+                $vttContent = $this->subtitleService->shiftWebVttTimestamps($vttContent, $totalShiftSeconds);
+            }
 
             return new class($vttContent) extends Response implements ICallbackResponse {
                 public function __construct(private string $body)
